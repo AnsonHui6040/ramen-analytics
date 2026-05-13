@@ -46,12 +46,20 @@ export interface FunnelRow {
 export interface QuestionDirectionRow {
   questionId: string;
   questionLabel: string;
+  questionStage: string;
   left: number;
   right: number;
   neutral: number;
   selected: number;
   not_selected: number;
   unknown: number;
+}
+
+export interface QuestionnaireInfluenceRow {
+  component: string;
+  label: string;
+  weight: number;
+  noteKey: "directType" | "flavorMatch" | "proteinMatch" | "noodleTexture" | "toppingMatch" | "alignment" | "allergenGate";
 }
 
 export interface FeedbackRatingRow {
@@ -92,7 +100,10 @@ export interface AnswerTableRow {
   id: string;
   quizRunIdHash: string;
   questionId: string;
+  questionStage: string;
   questionLabel: string;
+  leftLabel: string;
+  rightLabel: string;
   direction: string;
   selected: string;
   axis: string;
@@ -120,6 +131,7 @@ export interface DashboardView {
   compareTypeCodes: string[];
   funnel: FunnelRow[];
   questionDirection: QuestionDirectionRow[];
+  questionnaireInfluence: QuestionnaireInfluenceRow[];
   feedbackRatings: FeedbackRatingRow[];
   flavorTags: TagRow[];
   allergenWarnings: TagRow[];

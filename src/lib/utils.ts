@@ -1,30 +1,37 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { Locale } from "@/i18n/dictionary";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatNumber(value: number, options?: Intl.NumberFormatOptions) {
-  return new Intl.NumberFormat("en-US", {
+const intlLocale: Record<Locale, string> = {
+  zh: "zh-TW",
+  en: "en-US",
+  ja: "ja-JP"
+};
+
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions, locale: Locale = "en") {
+  return new Intl.NumberFormat(intlLocale[locale], {
     maximumFractionDigits: 0,
     ...options
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-export function formatPercent(value: number, digits = 1) {
+export function formatPercent(value: number, digits = 1, locale: Locale = "en") {
   return `${formatNumber(value * 100, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits
-  })}%`;
+  }, locale)}%`;
 }
 
-export function formatDecimal(value: number | null | undefined, digits = 2) {
+export function formatDecimal(value: number | null | undefined, digits = 2, locale: Locale = "en") {
   if (value === null || value === undefined || Number.isNaN(value)) return "N/A";
   return formatNumber(value, {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits
-  });
+  }, locale);
 }
 
 export function downloadBlob(fileName: string, content: BlobPart, type: string) {

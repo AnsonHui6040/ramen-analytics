@@ -1,4 +1,5 @@
 import { AXIS_KEYS, type AxisKey, type AxisValues, type ClientEvent, type FeedbackEntry, type IssueCategory, type NormalizedAnswer, type ParsedEvent, type QuizRunSummary, type ValidationIssue } from "@/types/events";
+import { QUESTION_AXIS_MAP, QUESTIONNAIRE_EXPECTED_ANSWER_COUNT } from "@/analytics/questionnaire-baseline";
 import { hashString } from "@/parser/hash";
 import { createIssue } from "@/validation/issues";
 
@@ -11,6 +12,7 @@ const INVALID_FOR_COMPLETION = new Set<IssueCategory>([
   "incomplete_quiz_run",
   "answer_count_mismatch",
   "answers_length_mismatch",
+  "questionnaire_count_mismatch",
   "missing_required_field"
 ]);
 
@@ -100,7 +102,7 @@ export function buildAnalytics(
 
     const invalidAxes = AXIS_KEYS.filter((axis) => {
       const value = axes[axis];
-      return value !== null && (!Number.isFinite(value) || Math.abs(value) > 100);
+      return value !== null && (!Number.isFinite(value) || value < 0 || value > 100);
     });
     if (invalidAxes.length > 0) {
       runIssues.push(
@@ -143,6 +145,21 @@ export function buildAnalytics(
           runIdHash: quizRunIdHash,
           eventType: "answer_snapshot",
           field: "answers.length"
+        })
+      );
+    }
+
+    if (answerSnapshot && answers.length !== QUESTIONNAIRE_EXPECTED_ANSWER_COUNT) {
+      runIssues.push(
+        createIssue({
+          severity: "error",
+          category: "questionnaire_count_mismatch",
+          message: `Questionnaire baseline expects ${QUESTIONNAIRE_EXPECTED_ANSWER_COUNT} answers, but payload.answers contains ${answers.length}`,
+          fileName: answerSnapshot.fileName,
+          rowNumber: answerSnapshot.rowNumber,
+          runIdHash: quizRunIdHash,
+          eventType: "answer_snapshot",
+          field: "payload.answers"
         })
       );
     }
@@ -197,7 +214,15 @@ export function buildAnalytics(
       typeCode: typeInfo.typeCode,
       typeName: typeInfo.typeName,
       axes,
-      flavorTags: extractStringList(resultPayload, ["flavorTags", "flavor_tags", "tags", "tagNames", "tag_names"]),
+      flavorTags: extractStringList(resultPayload, [
+        "topFlavorTags",
+        "top_flavor_tags",
+        "flavorTags",
+        "flavor_tags",
+        "tags",
+        "tagNames",
+        "tag_names"
+      ]),
       allergenWarnings: extractStringList(resultPayload, [
         "allergenWarnings",
         "allergen_warnings",
@@ -246,25 +271,55 @@ function extractAnswers(event: ParsedEvent): NormalizedAnswer[] {
       firstString(record, ["questionId", "question_id", "questionKey", "question_key", "id", "key"]) ||
       `q${index + 1}`;
     const questionLabel =
-      firstString(record, ["questionLabel", "question_label", "label", "title", "question", "text"]) || questionId;
+      firstString(record, [
+        "questionLabel",
+        "question_label",
+        "questionText",
+        "question_text",
+        "label",
+        "title",
+        "question",
+        "text"
+      ]) || questionId;
+    const questionStage =
+      firstString(record, ["questionStage", "question_stage", "stage", "section", "flowState", "flow_state"]) ||
+      "UNKNOWN";
+    const leftLabel = firstString(record, ["leftLabel", "left_label", "minLabel", "min_label"]);
+    const rightLabel = firstString(record, ["rightLabel", "right_label", "maxLabel", "max_label"]);
     const selected = coerceBoolean(
       firstDefined(record, ["selected", "isSelected", "is_selected", "checked", "answered", "isAnswered"])
     );
-    const value = coerceNumber(firstDefined(record, ["value", "score", "weight", "axisValue", "axis_value"]));
+    const value = coerceNumber(
+      firstDefined(record, ["answerValue", "answer_value", "value", "score", "weight", "axisValue", "axis_value"])
+    );
     const direction = normalizeDirection(
-      firstDefined(record, ["direction", "choice", "answer", "side", "selectedDirection", "selected_direction"]),
+      firstDefined(record, [
+        "answerDirection",
+        "answer_direction",
+        "direction",
+        "choice",
+        "answer",
+        "side",
+        "selectedDirection",
+        "selected_direction"
+      ]),
       value,
       selected
     );
-    const axis = normalizeAxis(firstString(record, ["axis", "axisKey", "axis_key"]));
+    const normalizedSelected =
+      selected ?? (direction === "selected" ? true : direction === "not_selected" ? false : null);
+    const axis = normalizeAxis(firstString(record, ["axis", "axisKey", "axis_key"])) ?? QUESTION_AXIS_MAP[questionId];
 
     return {
       id: hashString(`${event.quizRunIdHash}:${questionId}:${index}:${event.rowNumber}`, "answer"),
       quizRunIdHash: event.quizRunIdHash,
       questionId,
       questionLabel,
+      questionStage,
+      leftLabel: leftLabel || undefined,
+      rightLabel: rightLabel || undefined,
       direction,
-      selected,
+      selected: normalizedSelected,
       axis,
       value: value ?? undefined,
       answerIndex: index,

@@ -1,71 +1,73 @@
 import { AlertTriangle, CheckCircle2, CircleSlash, Gauge, MessageSquare, Star, TimerReset, Workflow } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import type { Dictionary, Locale } from "@/i18n/dictionary";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/utils";
 import type { DashboardMetrics } from "@/types/analytics";
 
 const kpiConfig = [
   {
     key: "totalQuizRuns",
-    label: "Total quiz runs",
     icon: Workflow,
-    format: (value: DashboardMetrics) => formatNumber(value.totalQuizRuns)
+    format: (value: DashboardMetrics, locale: Locale) => formatNumber(value.totalQuizRuns, undefined, locale)
   },
   {
     key: "validCompletedRuns",
-    label: "Valid completed",
     icon: CheckCircle2,
-    format: (value: DashboardMetrics) => formatNumber(value.validCompletedRuns)
+    format: (value: DashboardMetrics, locale: Locale) => formatNumber(value.validCompletedRuns, undefined, locale)
   },
   {
     key: "excludedLoadTestRuns",
-    label: "Excluded load-test",
     icon: CircleSlash,
-    format: (value: DashboardMetrics) => formatNumber(value.excludedLoadTestRuns)
+    format: (value: DashboardMetrics, locale: Locale) => formatNumber(value.excludedLoadTestRuns, undefined, locale)
   },
   {
     key: "completionRate",
-    label: "Completion rate",
     icon: Gauge,
-    format: (value: DashboardMetrics) => formatPercent(value.completionRate)
+    format: (value: DashboardMetrics, locale: Locale) => formatPercent(value.completionRate, 1, locale)
   },
   {
     key: "feedbackRate",
-    label: "Feedback rate",
     icon: MessageSquare,
-    format: (value: DashboardMetrics) => formatPercent(value.feedbackRate)
+    format: (value: DashboardMetrics, locale: Locale) => formatPercent(value.feedbackRate, 1, locale)
   },
   {
     key: "averageRating",
-    label: "Average rating",
     icon: Star,
-    format: (value: DashboardMetrics) => formatDecimal(value.averageRating)
+    format: (value: DashboardMetrics, locale: Locale) => formatDecimal(value.averageRating, 2, locale)
   },
   {
     key: "malformedRows",
-    label: "Malformed rows",
     icon: AlertTriangle,
-    format: (value: DashboardMetrics) => formatNumber(value.malformedRows)
+    format: (value: DashboardMetrics, locale: Locale) => formatNumber(value.malformedRows, undefined, locale)
   },
   {
     key: "duplicateEventCounts",
-    label: "Duplicate events",
     icon: TimerReset,
-    format: (value: DashboardMetrics) => formatNumber(value.duplicateEventCounts)
+    format: (value: DashboardMetrics, locale: Locale) => formatNumber(value.duplicateEventCounts, undefined, locale)
   }
 ] as const;
 
-export function KpiGrid({ metrics }: { metrics: DashboardMetrics }) {
+export function KpiGrid({
+  metrics,
+  t,
+  locale
+}: {
+  metrics: DashboardMetrics;
+  t: Dictionary["kpi"];
+  locale: Locale;
+}) {
   return (
     <section className="grid metric-grid gap-3">
       {kpiConfig.map((item) => {
         const Icon = item.icon;
+        const label = t[item.key];
         return (
           <Card key={item.key} className="animate-fade-in">
             <CardContent className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-medium uppercase text-muted-foreground">{item.label}</p>
-                  <p className="mt-2 text-2xl font-semibold tracking-normal">{item.format(metrics)}</p>
+                  <p className="min-h-8 text-xs font-medium uppercase leading-4 text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold tracking-normal">{item.format(metrics, locale)}</p>
                 </div>
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
                   <Icon className="size-5" />

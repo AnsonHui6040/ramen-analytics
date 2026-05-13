@@ -28,6 +28,7 @@ export type IssueCategory =
   | "incomplete_quiz_run"
   | "answer_count_mismatch"
   | "answers_length_mismatch"
+  | "questionnaire_count_mismatch"
   | "missing_required_field"
   | "csv_parse_error"
   | "unsupported_event";
@@ -85,6 +86,9 @@ export interface NormalizedAnswer {
   quizRunIdHash: string;
   questionId: string;
   questionLabel: string;
+  questionStage: string;
+  leftLabel?: string;
+  rightLabel?: string;
   direction: AnswerDirection;
   selected: boolean | null;
   axis?: AxisKey;

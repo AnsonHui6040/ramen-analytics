@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { Dictionary } from "@/i18n/dictionary";
 import type { DashboardFilters } from "@/types/analytics";
 
 interface FilterBarProps {
@@ -14,6 +15,8 @@ interface FilterBarProps {
   typeCodes: string[];
   appVersions: string[];
   sources: string[];
+  t: Dictionary["filters"];
+  sourceLabels: Dictionary["values"]["sourceLabels"];
 }
 
 export function FilterBar({
@@ -22,7 +25,9 @@ export function FilterBar({
   onReset,
   typeCodes,
   appVersions,
-  sources
+  sources,
+  t,
+  sourceLabels
 }: FilterBarProps) {
   const setFilter = (key: keyof DashboardFilters, value: string) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -30,10 +35,10 @@ export function FilterBar({
 
   return (
     <Card>
-      <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_auto]">
-        <Field label="Type">
+      <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(170px,1fr)_minmax(150px,1fr)_minmax(150px,1fr)_minmax(170px,1fr)_minmax(300px,1.35fr)_auto]">
+        <Field label={t.type}>
           <Select value={filters.typeCode} onChange={(event) => setFilter("typeCode", event.target.value)}>
-            <option value="all">All types</option>
+            <option value="all">{t.allTypes}</option>
             {typeCodes.map((typeCode) => (
               <option key={typeCode} value={typeCode}>
                 {typeCode}
@@ -41,9 +46,9 @@ export function FilterBar({
             ))}
           </Select>
         </Field>
-        <Field label="App version">
+        <Field label={t.appVersion}>
           <Select value={filters.appVersion} onChange={(event) => setFilter("appVersion", event.target.value)}>
-            <option value="all">All versions</option>
+            <option value="all">{t.allVersions}</option>
             {appVersions.map((version) => (
               <option key={version} value={version}>
                 {version}
@@ -51,41 +56,51 @@ export function FilterBar({
             ))}
           </Select>
         </Field>
-        <Field label="Source">
+        <Field label={t.source}>
           <Select value={filters.source} onChange={(event) => setFilter("source", event.target.value)}>
-            <option value="all">All sources</option>
+            <option value="all">{t.allSources}</option>
             {sources.map((source) => (
               <option key={source} value={source}>
-                {source}
+                {sourceLabels[source as keyof typeof sourceLabels] ?? source}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Validity">
+        <Field label={t.validity}>
           <Select value={filters.validity} onChange={(event) => setFilter("validity", event.target.value)}>
-            <option value="all">All runs</option>
-            <option value="valid">Valid</option>
-            <option value="invalid">Invalid</option>
-            <option value="load-test">Load-test</option>
+            <option value="all">{t.allRuns}</option>
+            <option value="valid">{t.valid}</option>
+            <option value="invalid">{t.invalid}</option>
+            <option value="load-test">{t.loadTest}</option>
           </Select>
         </Field>
-        <Field label="Feedback">
+        <Field label={t.feedback}>
           <Select value={filters.hasFeedback} onChange={(event) => setFilter("hasFeedback", event.target.value)}>
-            <option value="all">All feedback</option>
-            <option value="yes">Has feedback</option>
-            <option value="no">No feedback</option>
+            <option value="all">{t.allFeedback}</option>
+            <option value="yes">{t.hasFeedback}</option>
+            <option value="no">{t.noFeedback}</option>
           </Select>
         </Field>
         <div className="grid grid-cols-2 gap-2">
-          <Field label="From">
-            <Input type="date" value={filters.dateFrom} onChange={(event) => setFilter("dateFrom", event.target.value)} />
+          <Field label={t.from}>
+            <Input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) => setFilter("dateFrom", event.target.value)}
+              className="min-w-[132px]"
+            />
           </Field>
-          <Field label="To">
-            <Input type="date" value={filters.dateTo} onChange={(event) => setFilter("dateTo", event.target.value)} />
+          <Field label={t.to}>
+            <Input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) => setFilter("dateTo", event.target.value)}
+              className="min-w-[132px]"
+            />
           </Field>
         </div>
         <div className="flex items-end">
-          <Button variant="outline" size="icon" onClick={onReset} aria-label="Reset filters">
+          <Button variant="outline" size="icon" onClick={onReset} aria-label={t.reset}>
             <RotateCcw />
           </Button>
         </div>

@@ -164,25 +164,56 @@ function parseJsonField(value: unknown, field: string, context: NormalizeContext
   const trimmed = value.trim();
   if (!trimmed) return { value: undefined, issues };
 
-  try {
-    let parsed: unknown = JSON.parse(trimmed);
-    if (typeof parsed === "string" && /^[\[{]/.test(parsed.trim())) {
-      parsed = JSON.parse(parsed);
+  const candidates = buildJsonCandidates(trimmed);
+  let lastError = "unknown error";
+
+  for (const candidate of candidates) {
+    try {
+      let parsed: unknown = JSON.parse(candidate);
+      for (let depth = 0; depth < 2; depth += 1) {
+        if (typeof parsed !== "string" || !/^[\[{]/.test(parsed.trim())) break;
+        parsed = JSON.parse(parsed);
+      }
+      return { value: parsed, issues };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "unknown error";
     }
-    return { value: parsed, issues };
-  } catch (error) {
-    issues.push(
-      createIssue({
-        severity: "error",
-        category: "malformed_json",
-        message: `Malformed JSON in ${field}: ${error instanceof Error ? error.message : "unknown error"}`,
-        fileName: context.fileName,
-        rowNumber: context.rowNumber,
-        field
-      })
-    );
-    return { value: undefined, issues };
   }
+
+  issues.push(
+    createIssue({
+      severity: "error",
+      category: "malformed_json",
+      message: `Malformed JSON in ${field}: ${lastError}`,
+      fileName: context.fileName,
+      rowNumber: context.rowNumber,
+      field
+    })
+  );
+  return { value: undefined, issues };
+}
+
+function buildJsonCandidates(value: string) {
+  const candidates = new Set<string>();
+  candidates.add(value);
+
+  const stripped = stripWrappingQuotes(value);
+  candidates.add(stripped);
+  candidates.add(stripped.replaceAll("\"\"", "\""));
+
+  const quoteFixed = value.replaceAll("\"\"", "\"");
+  candidates.add(quoteFixed);
+  candidates.add(stripWrappingQuotes(quoteFixed));
+
+  return Array.from(candidates).filter(Boolean);
+}
+
+function stripWrappingQuotes(value: string) {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
 function pickDirect(row: JsonRecord, keys: string[]) {

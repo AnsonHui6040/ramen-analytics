@@ -1,4 +1,5 @@
 import { applyRunFilters } from "@/analytics/filters";
+import { QUESTION_STAGE_ORDER, QUESTIONNAIRE_INFLUENCE_ROWS } from "@/analytics/questionnaire-baseline";
 import { AXIS_KEYS, type AnswerDirection, type AxisKey, type QuizRunSummary } from "@/types/events";
 import type {
   AnswerTableRow,
@@ -37,30 +38,40 @@ export function buildDashboardView(
   const availableTypeCodes = uniqueSorted(runs.map((run) => run.typeCode));
   const availableAppVersions = uniqueSorted(runs.map((run) => run.appVersion));
   const availableSources = uniqueSorted(runs.map((run) => run.source));
-  const validRuns = filteredRuns.filter((run) => run.isValidCompleted);
-  const compareTypeCodes = selectCompareTypeCodes(validRuns, requestedCompareTypeCodes);
+  const analysisRuns = selectAnalysisRuns(filteredRuns, filters.validity);
+  const compareTypeCodes = selectCompareTypeCodes(analysisRuns, requestedCompareTypeCodes);
 
   return {
     filteredRuns,
     filteredIssues,
     metrics: buildMetrics(filteredRuns),
-    typeDistribution: buildTypeDistribution(validRuns),
-    axisRadar: buildAxisRadar(validRuns, compareTypeCodes),
+    typeDistribution: buildTypeDistribution(analysisRuns),
+    axisRadar: buildAxisRadar(analysisRuns, compareTypeCodes),
     compareTypeCodes,
-    funnel: buildFunnel(filteredRuns),
-    questionDirection: buildQuestionDirection(validRuns),
-    feedbackRatings: buildFeedbackRatings(filteredRuns),
-    flavorTags: buildTagRows(validRuns.flatMap((run) => run.flavorTags)),
-    allergenWarnings: buildTagRows(validRuns.flatMap((run) => run.allergenWarnings)),
-    versionAnalysis: buildVersionAnalysis(filteredRuns),
+    funnel: buildFunnel(filteredRuns, filters.validity === "load-test"),
+    questionDirection: buildQuestionDirection(analysisRuns),
+    questionnaireInfluence: QUESTIONNAIRE_INFLUENCE_ROWS,
+    feedbackRatings: buildFeedbackRatings(analysisRuns),
+    flavorTags: buildTagRows(analysisRuns.flatMap((run) => run.flavorTags)),
+    allergenWarnings: buildTagRows(analysisRuns.flatMap((run) => run.allergenWarnings)),
+    versionAnalysis: buildVersionAnalysis(filteredRuns, filters.validity === "load-test"),
     runRows: buildRunRows(filteredRuns),
-    answerRows: buildAnswerRows(validRuns),
+    answerRows: buildAnswerRows(analysisRuns),
     feedbackRows: buildFeedbackRows(filteredRuns, dataset?.exposeComments ?? false),
     issueRows: filteredIssues,
     availableTypeCodes,
     availableAppVersions,
     availableSources
   };
+}
+
+function selectAnalysisRuns(runs: QuizRunSummary[], validity: DashboardFilters["validity"]) {
+  if (validity === "load-test") {
+    return runs.filter(
+      (run) => run.isLoadTest && run.hasAnswerSnapshot && run.hasQuizResult && run.invalidReasonCodes.length === 0
+    );
+  }
+  return runs.filter((run) => run.isValidCompleted);
 }
 
 function buildMetrics(runs: QuizRunSummary[]): DashboardMetrics {
@@ -120,13 +131,17 @@ function buildAxisRadar(validRuns: QuizRunSummary[], compareTypeCodes: string[])
   });
 }
 
-function buildFunnel(runs: QuizRunSummary[]): FunnelRow[] {
+function buildFunnel(runs: QuizRunSummary[], includeLoadTest = false): FunnelRow[] {
+  const finalStageName = includeLoadTest ? "structurally_completed" : "valid_completed";
+  const finalStageValue = includeLoadTest
+    ? runs.filter((run) => run.hasAnswerSnapshot && run.hasQuizResult && run.invalidReasonCodes.length === 0).length
+    : runs.filter((run) => run.isValidCompleted).length;
   const stages = [
     ["quiz_started", runs.filter((run) => run.hasStarted).length],
     ["answer_snapshot", runs.filter((run) => run.hasAnswerSnapshot).length],
     ["quiz_result", runs.filter((run) => run.hasQuizResult).length],
     ["feedback", runs.filter((run) => run.hasFeedback).length],
-    ["valid_completed", runs.filter((run) => run.isValidCompleted).length]
+    [finalStageName, finalStageValue]
   ] as const;
 
   return stages.map(([name, value], index) => ({
@@ -137,11 +152,16 @@ function buildFunnel(runs: QuizRunSummary[]): FunnelRow[] {
 }
 
 function buildQuestionDirection(validRuns: QuizRunSummary[]): QuestionDirectionRow[] {
-  const groups = new Map<string, { label: string; counts: Record<AnswerDirection, number>; total: number }>();
+  const groups = new Map<
+    string,
+    { label: string; stage: string; minIndex: number; counts: Record<AnswerDirection, number>; total: number }
+  >();
 
   for (const answer of validRuns.flatMap((run) => run.answers)) {
     const bucket = groups.get(answer.questionId) ?? {
       label: answer.questionLabel,
+      stage: answer.questionStage,
+      minIndex: answer.answerIndex,
       counts: {
         left: 0,
         right: 0,
@@ -155,19 +175,23 @@ function buildQuestionDirection(validRuns: QuizRunSummary[]): QuestionDirectionR
     const direction = answer.selected === false ? "not_selected" : answer.direction;
     bucket.counts[direction] += 1;
     bucket.total += 1;
+    bucket.minIndex = Math.min(bucket.minIndex, answer.answerIndex);
     groups.set(answer.questionId, bucket);
   }
 
-  return Array.from(groups.entries()).map(([questionId, group]) => ({
-    questionId,
-    questionLabel: group.label,
-    left: percentage(group.counts.left, group.total),
-    right: percentage(group.counts.right, group.total),
-    neutral: percentage(group.counts.neutral, group.total),
-    selected: percentage(group.counts.selected, group.total),
-    not_selected: percentage(group.counts.not_selected, group.total),
-    unknown: percentage(group.counts.unknown, group.total)
-  }));
+  return Array.from(groups.entries())
+    .sort(([, a], [, b]) => stageOrder(a.stage) * 100 + a.minIndex - (stageOrder(b.stage) * 100 + b.minIndex))
+    .map(([questionId, group]) => ({
+      questionId,
+      questionLabel: group.label,
+      questionStage: group.stage,
+      left: percentage(group.counts.left, group.total),
+      right: percentage(group.counts.right, group.total),
+      neutral: percentage(group.counts.neutral, group.total),
+      selected: percentage(group.counts.selected, group.total),
+      not_selected: percentage(group.counts.not_selected, group.total),
+      unknown: percentage(group.counts.unknown, group.total)
+    }));
 }
 
 function buildFeedbackRatings(runs: QuizRunSummary[]): FeedbackRatingRow[] {
@@ -187,24 +211,28 @@ function buildTagRows(tags: string[]): TagRow[] {
     .slice(0, 24);
 }
 
-function buildVersionAnalysis(runs: QuizRunSummary[]): VersionAnalysisRow[] {
+function buildVersionAnalysis(runs: QuizRunSummary[], includeLoadTest = false): VersionAnalysisRow[] {
   const groups = groupBy(
-    runs.filter((run) => !run.isLoadTest),
+    runs.filter((run) => includeLoadTest || !run.isLoadTest),
     (run) => run.appVersion || "unknown"
   );
   return Array.from(groups.entries())
     .map(([appVersion, group]) => {
       const validRuns = group.filter((run) => run.isValidCompleted);
-      const feedbackRuns = validRuns.filter((run) => run.hasFeedback);
+      const completedRuns = includeLoadTest
+        ? group.filter((run) => run.hasAnswerSnapshot && run.hasQuizResult && run.invalidReasonCodes.length === 0)
+        : validRuns;
       const ratings = group
         .flatMap((run) => run.feedbacks.map((feedback) => feedback.rating))
         .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
       return {
         appVersion,
         totalRuns: group.length,
-        validCompletedRuns: validRuns.length,
-        completionRate: group.length ? validRuns.length / group.length : 0,
-        feedbackRate: validRuns.length ? feedbackRuns.length / validRuns.length : 0,
+        validCompletedRuns: completedRuns.length,
+        completionRate: group.length ? completedRuns.length / group.length : 0,
+        feedbackRate: completedRuns.length
+          ? group.filter((run) => completedRuns.includes(run) && run.hasFeedback).length / completedRuns.length
+          : 0,
         averageRating: ratings.length ? average(ratings) : null
       };
     })
@@ -234,13 +262,21 @@ function buildAnswerRows(runs: QuizRunSummary[]): AnswerTableRow[] {
       id: answer.id,
       quizRunIdHash: run.quizRunIdHash,
       questionId: answer.questionId,
+      questionStage: answer.questionStage,
       questionLabel: answer.questionLabel,
+      leftLabel: answer.leftLabel ?? "",
+      rightLabel: answer.rightLabel ?? "",
       direction: answer.direction,
       selected: answer.selected === null ? "unknown" : String(answer.selected),
       axis: answer.axis ?? "",
       value: answer.value === undefined ? "" : String(answer.value)
     }))
   );
+}
+
+function stageOrder(stage: string) {
+  const index = QUESTION_STAGE_ORDER.indexOf(stage as (typeof QUESTION_STAGE_ORDER)[number]);
+  return index === -1 ? QUESTION_STAGE_ORDER.length : index;
 }
 
 function buildFeedbackRows(runs: QuizRunSummary[], exposeComments: boolean): FeedbackTableRow[] {

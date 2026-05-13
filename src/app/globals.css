@@ -91,7 +91,19 @@
   }
 
   .metric-grid {
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  }
+
+  .recharts-default-tooltip {
+    outline: none;
+  }
+
+  .recharts-treemap-depth-1 text {
+    fill: hsl(var(--foreground));
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: hsl(var(--background));
+    stroke-width: 2px;
   }
 }
 

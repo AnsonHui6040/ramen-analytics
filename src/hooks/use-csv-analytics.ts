@@ -22,6 +22,10 @@ export function useCsvAnalytics() {
   const [error, setError] = React.useState<string | null>(null);
   const [progress, setProgress] = React.useState<ParseProgress | null>(null);
   const [exposeComments, setExposeCommentsState] = React.useState(false);
+  const progressLabelsRef = React.useRef({
+    preparing: "Preparing parser worker",
+    ready: "Analytics ready"
+  });
 
   const terminateWorker = React.useCallback(() => {
     workerRef.current?.terminate();
@@ -31,8 +35,19 @@ export function useCsvAnalytics() {
   React.useEffect(() => terminateWorker, [terminateWorker]);
 
   const parseFiles = React.useCallback(
-    (files: File[], nextExposeComments = exposeComments) => {
+    (
+      files: File[],
+      nextExposeComments = exposeComments,
+      labels?: {
+        preparing?: string;
+        ready?: string;
+      }
+    ) => {
       if (!files.length) return;
+      progressLabelsRef.current = {
+        preparing: labels?.preparing ?? progressLabelsRef.current.preparing,
+        ready: labels?.ready ?? progressLabelsRef.current.ready
+      };
       terminateWorker();
       filesRef.current = files;
       setExposeCommentsState(nextExposeComments);
@@ -42,7 +57,7 @@ export function useCsvAnalytics() {
         fileName: files[0].name,
         rows: 0,
         percent: 0,
-        message: "Preparing parser worker"
+        message: progressLabelsRef.current.preparing
       });
 
       const worker = new Worker(new URL("../parser/csv-worker.ts", import.meta.url), {
@@ -64,7 +79,7 @@ export function useCsvAnalytics() {
             fileName: "all files",
             rows: data.dataset.events.length,
             percent: 100,
-            message: "Analytics ready"
+            message: progressLabelsRef.current.ready
           });
           terminateWorker();
           return;
@@ -90,20 +105,20 @@ export function useCsvAnalytics() {
     [exposeComments, terminateWorker]
   );
 
-  const loadSample = React.useCallback(() => {
+  const loadSample = React.useCallback((labels?: { preparing?: string; ready?: string }) => {
     const sampleFile = new File([createSampleCsv()], "synthetic-ramen-events.csv", {
       type: "text/csv"
     });
-    parseFiles([sampleFile], false);
+    parseFiles([sampleFile], false, labels);
   }, [parseFiles]);
 
   const setExposeComments = React.useCallback(
-    (next: boolean) => {
-      if (next && !window.confirm("顯示原始 feedback comments 可能包含個資或敏感內容。確定要重新解析並顯示 comments？")) {
+    (next: boolean, confirmMessage?: string, labels?: { preparing?: string; ready?: string }) => {
+      if (next && !window.confirm(confirmMessage ?? "Raw feedback comments may contain personal or sensitive information. Re-parse and show comments?")) {
         return;
       }
       if (filesRef.current.length) {
-        parseFiles(filesRef.current, next);
+        parseFiles(filesRef.current, next, labels);
       } else {
         setExposeCommentsState(next);
       }

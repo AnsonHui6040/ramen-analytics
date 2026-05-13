@@ -37,6 +37,8 @@ npm run build
 - `analytics/`: run-level aggregation、valid completion 判定、filtering。
 - `chart-transformers/`: dashboard view model 與 Recharts data transforms。
 - `hooks/`: `useCsvAnalytics` 管理 worker lifecycle、demo CSV、comments exposure。
+- `i18n/`: 中文、英文、日文 UI dictionary 與 validation label 翻譯。
+- `analytics/questionnaire-baseline.ts`: ramen-style-finder 問卷基準，包含 39 題題數檢查、題組順序、四軸映射與 scoring 權重說明。
 - `types/`: event、run、analytics、table 與 chart 型別。
 - `components/dashboard/`: upload、filters、KPI cards、charts、validation panel、data tables。
 - `components/ui/`: shadcn/ui-style Button、Card、Input、Select、Tabs、Table、Switch、Progress、Badge。
@@ -60,7 +62,8 @@ npm run build
 4. `feedback` 提供 rating 與 comment metadata。
 5. load-test runs 預設標記並從 valid stats 排除。
 6. malformed、duplicate、incomplete、answer count mismatch 的 runs 不計入 valid completed。
-7. UI filters 作用在 run summary，再重新計算 KPI、charts、tables。
+7. 問卷基準預期 final answer snapshot 有 39 題，題數不一致會標成 validation issue。
+8. UI filters 作用在 run summary，再重新計算 KPI、charts、tables。
 
 ## Chart System
 
@@ -74,8 +77,15 @@ Recharts chart data 都由 `chart-transformers/dashboard-transformers.ts` 產生
 - Treemap: flavor tag analysis。
 - Bar: allergen warning analysis。
 - Line: appVersion completion rate、feedback rate、average rating。
+- Bar: questionnaire influence model, based on ramen-style-finder scoring weights.
 
 每張圖表卡片都有 PNG export button，使用 `html-to-image` 在瀏覽器端輸出。
+
+Load-test 資料預設不納入有效統計；若使用「有效性 = Load-test」篩選，圖表會切換成測試資料檢視，用於確認 exported CSV 結構與測試分布。
+
+## Languages
+
+UI 內建中文、英文、日文切換，語言設定會存到 `localStorage`。資料欄位、CSV export 與 summary JSON 仍保留原始分析 key，避免多語系顯示影響後續資料處理。
 
 ## Validation Logic
 

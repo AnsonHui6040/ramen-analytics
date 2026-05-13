@@ -50,7 +50,7 @@ export function createSampleCsv() {
   push(2, "quiz_result", "run-001", "1.3.0", "production", {
     typeCode: "shoyu",
     typeName: "Shoyu",
-    axes: { richnessAxis: 0.65, brothBodyAxis: 0.72, impactAxis: 0.38, noodleBodyAxis: -0.25 },
+    axes: { richnessAxis: 65, brothBodyAxis: 72, impactAxis: 38, noodleBodyAxis: 25 },
     flavorTags: ["soy", "balanced", "aromatic"],
     allergenWarnings: ["soy", "wheat"]
   });
@@ -73,7 +73,7 @@ export function createSampleCsv() {
   push(8, "quiz_result", "run-002", "1.3.1", "production", {
     typeCode: "tonkotsu",
     typeName: "Tonkotsu",
-    axes: { richnessAxis: 0.92, brothBodyAxis: 0.9, impactAxis: 0.75, noodleBodyAxis: 0.6 },
+    axes: { richnessAxis: 92, brothBodyAxis: 90, impactAxis: 75, noodleBodyAxis: 60 },
     flavorTags: ["creamy", "savory", "rich"],
     allergenWarnings: ["pork", "wheat"]
   });
@@ -94,7 +94,7 @@ export function createSampleCsv() {
     isLoadTest: true,
     typeCode: "miso",
     typeName: "Miso",
-    axes: { richnessAxis: 0.5, brothBodyAxis: 0.4, impactAxis: 0.7, noodleBodyAxis: 0.1 }
+    axes: { richnessAxis: 50, brothBodyAxis: 40, impactAxis: 70, noodleBodyAxis: 10 }
   });
 
   push(28, "quiz_started", "run-005", "1.3.1", "production", {});
@@ -115,7 +115,7 @@ export function createSampleCsv() {
   push(31, "quiz_result", "run-005", "1.3.1", "production", {
     typeCode: "shio",
     typeName: "Shio",
-    axes: { richnessAxis: -0.3, brothBodyAxis: -0.15, impactAxis: 0.2, noodleBodyAxis: 0 }
+    axes: { richnessAxis: 30, brothBodyAxis: 15, impactAxis: 20, noodleBodyAxis: 0 }
   });
 
   push(40, "feedback", "run-006", "1.3.1", "production", "{bad json");
