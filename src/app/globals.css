@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 30% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 174 68% 31%;
+    --primary-foreground: 180 100% 98%;
+    --secondary: 38 92% 93%;
+    --secondary-foreground: 24 54% 22%;
+    --muted: 210 28% 93%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 348 82% 94%;
+    --accent-foreground: 345 63% 28%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 28% 86%;
+    --input: 214 28% 86%;
+    --ring: 174 68% 31%;
+    --radius: 0.5rem;
+    --chart-1: 174 68% 37%;
+    --chart-2: 33 89% 55%;
+    --chart-3: 345 70% 55%;
+    --chart-4: 215 77% 54%;
+    --chart-5: 128 44% 42%;
+    --chart-6: 266 52% 56%;
+  }
+
+  .dark {
+    --background: 220 32% 9%;
+    --foreground: 210 35% 96%;
+    --card: 220 27% 13%;
+    --card-foreground: 210 35% 96%;
+    --popover: 220 27% 13%;
+    --popover-foreground: 210 35% 96%;
+    --primary: 174 63% 46%;
+    --primary-foreground: 180 100% 8%;
+    --secondary: 38 47% 18%;
+    --secondary-foreground: 40 95% 88%;
+    --muted: 219 22% 18%;
+    --muted-foreground: 214 18% 68%;
+    --accent: 345 38% 20%;
+    --accent-foreground: 345 88% 88%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 22% 24%;
+    --input: 217 22% 24%;
+    --ring: 174 63% 46%;
+    --chart-1: 174 63% 46%;
+    --chart-2: 35 92% 58%;
+    --chart-3: 345 78% 63%;
+    --chart-4: 211 85% 62%;
+    --chart-5: 132 51% 52%;
+    --chart-6: 266 58% 66%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply border shadow-glass backdrop-blur-xl;
+    background-color: rgb(255 255 255 / 0.72);
+    border-color: rgb(255 255 255 / 0.55);
+  }
+
+  .dark .glass-card {
+    background-color: hsl(var(--card) / 0.72);
+    border-color: rgb(255 255 255 / 0.1);
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
