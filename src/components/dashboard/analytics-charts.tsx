@@ -6,32 +6,23 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Funnel,
   FunnelChart,
   LabelList,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ResponsiveContainer,
   Tooltip,
-  Treemap,
   XAxis,
   YAxis
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { localizeQuestionLabel } from "@/analytics/questionnaire-baseline";
+import { localizeChoiceLabel, localizeQuestionLabel } from "@/analytics/questionnaire-baseline";
 import type { Dictionary, Locale } from "@/i18n/dictionary";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/utils";
-import type { DashboardView } from "@/types/analytics";
+import type { DashboardView, PreferenceHighlightRow, TagRow, TypeDistributionRow } from "@/types/analytics";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -102,6 +93,18 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
     () => view.allergenWarnings.map((row) => ({ ...row, name: localizeTagLabel(row.name, locale) })),
     [locale, view.allergenWarnings]
   );
+  const preferenceHighlightData = React.useMemo(
+    () =>
+      view.preferenceHighlights.map((row) => ({
+        ...row,
+        label: localizeQuestionLabel(row.questionId, row.label, locale),
+        valueLabel:
+          row.valueLabel === "selected"
+            ? t.charts.directionLabels.selected
+            : localizeChoiceLabel(row.questionId, "right", row.valueLabel, locale)
+      })),
+    [locale, t, view.preferenceHighlights]
+  );
 
   const toggleType = (typeCode: string) => {
     const active = compareTypeCodes.includes(typeCode);
@@ -120,33 +123,10 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
         description={t.charts.typeDistribution.description}
         exportLabel={t.charts.exportPng(t.charts.typeDistribution.title)}
         errorLabel={t.charts.pngExportFailed}
+        className="xl:col-span-2"
       >
         {view.typeDistribution.length ? (
-          <ResponsiveContainer width="100%" height={320}>
-            <PieChart>
-              <Pie
-                data={view.typeDistribution}
-                dataKey="count"
-                nameKey="typeCode"
-                innerRadius={72}
-                outerRadius={108}
-                paddingAngle={3}
-              >
-                {view.typeDistribution.map((_, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                formatter={(value, _name, item) => [
-                  formatNumberForLocale(Number(value), locale),
-                  `${item.payload.typeName} (${formatPercent(item.payload.percentage, 1, locale)})`
-                ]}
-              />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <TypeDistributionGrid rows={view.typeDistribution} locale={locale} />
         ) : (
           <NoData label={t.charts.noData} />
         )}
@@ -178,30 +158,12 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
           })}
         </div>
         {axisData.length ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={axisData} margin={{ top: 12, right: 42, bottom: 8, left: 42 }}>
-              <PolarGrid />
-              <PolarAngleAxis dataKey="axisLabel" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-              <PolarRadiusAxis />
-              <Radar name={t.charts.axisAnalysis.overall} dataKey="overall" stroke={COLORS[0]} fill={COLORS[0]} fillOpacity={0.16} />
-              {view.compareTypeCodes.map((typeCode, index) => (
-                <Radar
-                  key={typeCode}
-                  name={typeCode}
-                  dataKey={typeCode}
-                  stroke={COLORS[(index + 1) % COLORS.length]}
-                  fill={COLORS[(index + 1) % COLORS.length]}
-                  fillOpacity={0.08}
-                />
-              ))}
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-                formatter={(value) => formatDecimal(Number(value), 2, locale)}
-              />
-              <Legend />
-            </RadarChart>
-          </ResponsiveContainer>
+          <AxisPercentagePanel
+            rows={axisData}
+            compareTypeCodes={view.compareTypeCodes}
+            overallLabel={t.charts.axisAnalysis.overall}
+            locale={locale}
+          />
         ) : (
           <NoData label={t.charts.noData} />
         )}
@@ -326,18 +288,7 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
         errorLabel={t.charts.pngExportFailed}
       >
         {flavorTagData.length ? (
-          <ResponsiveContainer width="100%" height={280}>
-            <Treemap
-              data={flavorTagData}
-              dataKey="value"
-              nameKey="name"
-              aspectRatio={4 / 3}
-              stroke="hsl(var(--background))"
-              fill={COLORS[0]}
-            >
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "hsl(var(--popover-foreground))" }} />
-            </Treemap>
-          </ResponsiveContainer>
+          <PercentageTiles rows={flavorTagData} locale={locale} />
         ) : (
           <NoData label={t.charts.noData} />
         )}
@@ -351,15 +302,21 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
         errorLabel={t.charts.pngExportFailed}
       >
         {allergenWarningData.length ? (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={allergenWarningData} layout="vertical" margin={{ left: 24, right: 16, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} />
-              <YAxis dataKey="name" type="category" width={88} />
-              <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "hsl(var(--popover-foreground))" }} />
-              <Bar dataKey="value" fill={COLORS[1]} radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <PercentageTiles rows={allergenWarningData} locale={locale} />
+        ) : (
+          <NoData label={t.charts.noData} />
+        )}
+      </ChartPanel>
+
+      <ChartPanel
+        id="chart-preference-highlights"
+        title={t.charts.preferenceHighlights.title}
+        description={t.charts.preferenceHighlights.description}
+        exportLabel={t.charts.exportPng(t.charts.preferenceHighlights.title)}
+        errorLabel={t.charts.pngExportFailed}
+      >
+        {preferenceHighlightData.length ? (
+          <PreferenceHighlightGrid rows={preferenceHighlightData} t={t} locale={locale} />
         ) : (
           <NoData label={t.charts.noData} />
         )}
@@ -409,7 +366,8 @@ function ChartPanel({
   description,
   exportLabel,
   errorLabel,
-  children
+  children,
+  className = ""
 }: {
   id: string;
   title: string;
@@ -417,9 +375,10 @@ function ChartPanel({
   exportLabel: string;
   errorLabel: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <Card id={id} className="min-h-[360px] animate-fade-in overflow-hidden">
+    <Card id={id} className={`min-h-[360px] animate-fade-in overflow-hidden ${className}`}>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <div className="min-w-0">
           <CardTitle>{title}</CardTitle>
@@ -431,6 +390,139 @@ function ChartPanel({
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
+  );
+}
+
+function TypeDistributionGrid({ rows, locale }: { rows: TypeDistributionRow[]; locale: Locale }) {
+  const maxPercentage = Math.max(...rows.map((row) => row.percentage), 0.01);
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      {rows.map((row, index) => {
+        const active = row.count > 0;
+        return (
+          <div
+            key={row.typeCode}
+            className={`min-h-[116px] rounded-md border p-3 ${active ? "bg-background/80" : "bg-muted/25 text-muted-foreground"}`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">{row.typeCode}</div>
+                <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{row.typeName}</div>
+              </div>
+              <div className="text-right text-base font-semibold">{formatPercent(row.percentage, 1, locale)}</div>
+            </div>
+            <div className="mt-3 h-2 rounded-full bg-muted">
+              <div
+                className="h-2 rounded-full"
+                style={{
+                  width: `${Math.max(2, (row.percentage / maxPercentage) * 100)}%`,
+                  backgroundColor: COLORS[index % COLORS.length],
+                  opacity: active ? 1 : 0.24
+                }}
+              />
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">{formatNumberForLocale(row.count, locale)} runs</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AxisPercentagePanel({
+  rows,
+  compareTypeCodes,
+  overallLabel,
+  locale
+}: {
+  rows: Array<Record<string, string | number>>;
+  compareTypeCodes: string[];
+  overallLabel: string;
+  locale: Locale;
+}) {
+  return (
+    <div className="grid gap-3">
+      {rows.map((row) => (
+        <div key={String(row.axis)} className="rounded-md border bg-background/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-semibold">{row.axisLabel}</div>
+            <div className="text-lg font-semibold">{formatPercent(Number(row.overall) / 100, 1, locale)}</div>
+          </div>
+          <PercentBar value={Number(row.overall)} color={COLORS[0]} />
+          {compareTypeCodes.length > 0 && (
+            <div className="mt-3 grid gap-2">
+              {compareTypeCodes.map((typeCode, index) => (
+                <div key={typeCode} className="grid grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2 text-xs">
+                  <span className="font-medium text-muted-foreground">{typeCode}</span>
+                  <PercentBar value={Number(row[typeCode] ?? 0)} color={COLORS[(index + 1) % COLORS.length]} compact />
+                  <span className="text-right text-muted-foreground">
+                    {formatPercent(Number(row[typeCode] ?? 0) / 100, 0, locale)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-xs text-muted-foreground">{overallLabel}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PreferenceHighlightGrid({
+  rows,
+  t,
+  locale
+}: {
+  rows: Array<PreferenceHighlightRow & { label: string; valueLabel: string }>;
+  t: Dictionary;
+  locale: Locale;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {rows.slice(0, 12).map((row, index) => (
+        <div key={`${row.id}-${row.valueLabel}`} className="rounded-md border bg-background/70 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-muted-foreground">
+                {t.preferenceCategories[row.category]}
+              </div>
+              <div className="mt-1 line-clamp-2 text-sm font-semibold">{row.label}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{row.valueLabel}</div>
+            </div>
+            <div className="text-lg font-semibold">{formatPercent(row.percentage, 1, locale)}</div>
+          </div>
+          <PercentBar value={row.percentage * 100} color={COLORS[index % COLORS.length]} />
+          <div className="mt-2 text-xs text-muted-foreground">n={formatNumberForLocale(row.sampleSize, locale)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PercentageTiles({ rows, locale }: { rows: TagRow[]; locale: Locale }) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {rows.slice(0, 10).map((row, index) => (
+        <div key={row.name} className="rounded-md border bg-background/70 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 truncate text-sm font-semibold">{row.name}</div>
+            <div className="text-base font-semibold">{formatPercent(row.percentage, 1, locale)}</div>
+          </div>
+          <PercentBar value={row.percentage * 100} color={COLORS[index % COLORS.length]} />
+          <div className="mt-2 text-xs text-muted-foreground">{formatNumberForLocale(row.value, locale)} runs</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PercentBar({ value, color, compact = false }: { value: number; color: string; compact?: boolean }) {
+  const width = Math.min(100, Math.max(0, value));
+  return (
+    <div className={`${compact ? "h-1.5" : "mt-3 h-2"} rounded-full bg-muted`}>
+      <div className={`${compact ? "h-1.5" : "h-2"} rounded-full`} style={{ width: `${width}%`, backgroundColor: color }} />
+    </div>
   );
 }
 

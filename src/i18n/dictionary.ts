@@ -129,6 +129,10 @@ export const dictionaries = {
         title: "過敏原警示分析",
         description: "有效完成測驗中的過敏原警示出現頻率"
       },
+      preferenceHighlights: {
+        title: "風味與配料偏好",
+        description: "把風味、素材、配料與過敏原拆成單項百分比，方便快速判斷偏好"
+      },
       versionAnalysis: {
         title: "版本分析",
         description: "依應用版本比較完成率、回饋率與平均評分"
@@ -163,6 +167,12 @@ export const dictionaries = {
       topping: "配料偏好",
       archetypeAlignment: "主型對齊",
       allergenGate: "過敏原排除"
+    },
+    preferenceCategories: {
+      flavor: "風味",
+      protein: "素材",
+      topping: "配料",
+      allergen: "過敏原"
     },
     funnelStages: {
       quiz_started: "開始測驗",
@@ -244,7 +254,7 @@ export const dictionaries = {
       title: "示範預覽",
       description:
         "點示範模式會載入合成範例 CSV，包含有效完成測驗、壓力測試排除、重複答案快照、不完整測驗與 JSON 格式錯誤範例。",
-      tiles: ["類型甜甜圈圖", "軸向雷達圖", "完成漏斗", "驗證問題"],
+      tiles: ["16 型百分比分布", "軸向百分比條", "完成漏斗", "驗證問題"],
       cards: [
         ["10 萬筆以上", "背景解析與記憶化儀表板轉換"],
         ["隱私", "無後端、ID 雜湊、留言預設隱藏"],
@@ -368,6 +378,10 @@ export const dictionaries = {
         title: "Allergen Warning Analysis",
         description: "warning frequency by valid completed run"
       },
+      preferenceHighlights: {
+        title: "Flavor and Topping Preferences",
+        description: "single-item percentages for flavor, ingredient, topping, and allergen signals"
+      },
       versionAnalysis: {
         title: "Version Analysis",
         description: "completion rate, feedback rate, average rating by appVersion"
@@ -402,6 +416,12 @@ export const dictionaries = {
       topping: "Topping preferences",
       archetypeAlignment: "Type alignment",
       allergenGate: "Allergen gate"
+    },
+    preferenceCategories: {
+      flavor: "Flavor",
+      protein: "Ingredient",
+      topping: "Topping",
+      allergen: "Allergen"
     },
     funnelStages: {
       quiz_started: "quiz_started",
@@ -484,7 +504,7 @@ export const dictionaries = {
       title: "Demo preview",
       description:
         "Demo mode loads a synthetic sample CSV with valid runs, load-test exclusion, duplicate answer_snapshot, incomplete run, and malformed JSON examples.",
-      tiles: ["Type donut", "Axis radar", "Completion funnel", "Validation issues"],
+      tiles: ["16-type distribution", "Axis percentages", "Completion funnel", "Validation issues"],
       cards: [
         ["100k+ rows", "Worker parsing and memoized dashboard transforms"],
         ["Privacy", "No backend, hashed IDs, hidden comments by default"],
@@ -609,6 +629,10 @@ export const dictionaries = {
         title: "アレルゲン警告分析",
         description: "有効完了したクイズでのアレルゲン警告の頻度"
       },
+      preferenceHighlights: {
+        title: "味とトッピングの嗜好",
+        description: "味、素材、トッピング、アレルゲンを単項目の割合で表示します"
+      },
       versionAnalysis: {
         title: "バージョン分析",
         description: "アプリバージョンごとの完了率、回答率、平均評価"
@@ -643,6 +667,12 @@ export const dictionaries = {
       topping: "トッピングの好み",
       archetypeAlignment: "タイプ一致度",
       allergenGate: "アレルゲン除外"
+    },
+    preferenceCategories: {
+      flavor: "味",
+      protein: "素材",
+      topping: "トッピング",
+      allergen: "アレルゲン"
     },
     funnelStages: {
       quiz_started: "開始",
@@ -725,7 +755,7 @@ export const dictionaries = {
       title: "デモプレビュー",
       description:
         "デモモードでは、有効完了クイズ、負荷テスト除外、重複回答記録、不完全なクイズ、JSON 形式エラーを含む合成サンプル CSV を読み込みます。",
-      tiles: ["タイプドーナツ", "軸レーダー", "完了ファネル", "検証問題"],
+      tiles: ["16タイプ分布", "軸の割合", "完了ファネル", "検証問題"],
       cards: [
         ["10 万行以上", "バックグラウンド解析とメモ化されたダッシュボード変換"],
         ["プライバシー", "バックエンドなし、ID はハッシュ化、コメントは既定で非表示"],

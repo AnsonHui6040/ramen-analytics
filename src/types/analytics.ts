@@ -37,6 +37,18 @@ export interface AxisRadarRow {
   [typeCode: string]: string | number;
 }
 
+export type PreferenceHighlightCategory = "flavor" | "protein" | "topping" | "allergen";
+
+export interface PreferenceHighlightRow {
+  id: string;
+  category: PreferenceHighlightCategory;
+  questionId: string;
+  label: string;
+  valueLabel: string;
+  percentage: number;
+  sampleSize: number;
+}
+
 export interface FunnelRow {
   name: string;
   value: number;
@@ -70,6 +82,7 @@ export interface FeedbackRatingRow {
 export interface TagRow {
   name: string;
   value: number;
+  percentage: number;
 }
 
 export interface VersionAnalysisRow {
@@ -174,6 +187,7 @@ export interface DashboardView {
   metrics: DashboardMetrics;
   typeDistribution: TypeDistributionRow[];
   axisRadar: AxisRadarRow[];
+  preferenceHighlights: PreferenceHighlightRow[];
   compareTypeCodes: string[];
   funnel: FunnelRow[];
   questionDirection: QuestionDirectionRow[];

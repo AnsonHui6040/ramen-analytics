@@ -9,7 +9,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node tests/analytics-regression.mjs",
-    "export:dynamodb": "node scripts/export-dynamodb-events.mjs"
+    "export:dynamodb": "node scripts/export-dynamodb-events.mjs",
+    "loadtest:20": "node scripts/load-test-collector.mjs --users 20 --concurrency 8",
+    "loadtest:50": "node scripts/load-test-collector.mjs --users 50 --concurrency 8"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",

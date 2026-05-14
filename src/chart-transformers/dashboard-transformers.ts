@@ -13,6 +13,7 @@ import type {
   FunnelRow,
   IssueParetoRow,
   PersonaSegmentRow,
+  PreferenceHighlightRow,
   QuestionDirectionRow,
   RunTableRow,
   TagRow,
@@ -28,6 +29,59 @@ const FUNNEL_COLORS = [
   "hsl(var(--chart-3))",
   "hsl(var(--chart-5))"
 ];
+
+const TYPE_CATALOG = [
+  { typeCode: "CKLF", typeName: "清亮細緻型" },
+  { typeCode: "CKLT", typeName: "清湯厚麵型" },
+  { typeCode: "CKHF", typeName: "清湯銳感型" },
+  { typeCode: "CKHT", typeName: "清湯硬派型" },
+  { typeCode: "CWLF", typeName: "輕白滑順型" },
+  { typeCode: "CWLT", typeName: "輕白厚麵型" },
+  { typeCode: "CWHF", typeName: "白湯細銳型" },
+  { typeCode: "CWHT", typeName: "白湯衝擊型" },
+  { typeCode: "RKLF", typeName: "厚湯細緻型" },
+  { typeCode: "RKLT", typeName: "厚湯厚麵型" },
+  { typeCode: "RKHF", typeName: "厚湯銳感型" },
+  { typeCode: "RKHT", typeName: "厚湯硬派型" },
+  { typeCode: "RWLF", typeName: "濃白細滑型" },
+  { typeCode: "RWLT", typeName: "濃白厚麵型" },
+  { typeCode: "RWHF", typeName: "濃白細膩型" },
+  { typeCode: "RWHT", typeName: "濃白重口型" }
+] as const;
+
+const PREFERENCE_HIGHLIGHT_QUESTIONS = new Set([
+  "flavor_meat_vs_sea",
+  "flavor_fermented",
+  "flavor_citrus",
+  "flavor_spice",
+  "flavor_fatty_sweet",
+  "protein_pork",
+  "protein_chicken",
+  "protein_beef",
+  "protein_duck",
+  "protein_shrimp",
+  "protein_shellfish",
+  "protein_fish",
+  "protein_miso",
+  "topping_chashu",
+  "topping_beef",
+  "topping_egg",
+  "topping_nori",
+  "topping_spinach",
+  "topping_menma",
+  "topping_veg_pile",
+  "topping_corn",
+  "topping_butter",
+  "topping_garlic",
+  "topping_backfat",
+  "topping_seafood",
+  "crustacean",
+  "shellfish",
+  "egg",
+  "milk",
+  "beef",
+  "pork"
+]);
 
 export function buildDashboardView(
   dataset: AnalyticsDataset | null,
@@ -50,13 +104,14 @@ export function buildDashboardView(
     metrics: buildMetrics(filteredRuns),
     typeDistribution: buildTypeDistribution(analysisRuns),
     axisRadar: buildAxisRadar(analysisRuns, compareTypeCodes),
+    preferenceHighlights: buildPreferenceHighlights(analysisRuns),
     compareTypeCodes,
     funnel: buildFunnel(filteredRuns, filters.validity === "load-test"),
     questionDirection: buildQuestionDirection(analysisRuns),
     questionnaireInfluence: QUESTIONNAIRE_INFLUENCE_ROWS,
     feedbackRatings: buildFeedbackRatings(analysisRuns),
-    flavorTags: buildTagRows(analysisRuns.flatMap((run) => run.flavorTags)),
-    allergenWarnings: buildTagRows(analysisRuns.flatMap((run) => run.allergenWarnings)),
+    flavorTags: buildTagRows(analysisRuns.map((run) => run.flavorTags)),
+    allergenWarnings: buildTagRows(analysisRuns.map((run) => run.allergenWarnings)),
     versionAnalysis: buildVersionAnalysis(filteredRuns, filters.validity === "load-test"),
     runRows: buildRunRows(filteredRuns),
     answerRows: buildAnswerRows(analysisRuns),
@@ -108,17 +163,25 @@ function buildMetrics(runs: QuizRunSummary[]): DashboardMetrics {
 function buildTypeDistribution(validRuns: QuizRunSummary[]): TypeDistributionRow[] {
   const counts = countBy(validRuns, (run) => run.typeCode || "unknown");
   const total = validRuns.length;
-  return Array.from(counts.entries())
-    .map(([typeCode, count]) => {
-      const run = validRuns.find((candidate) => candidate.typeCode === typeCode);
-      return {
-        typeCode,
-        typeName: run?.typeName ?? typeCode,
-        count,
-        percentage: total ? count / total : 0
-      };
-    })
-    .sort((a, b) => b.count - a.count);
+  const catalogRows = TYPE_CATALOG.map(({ typeCode, typeName }) => {
+    const run = validRuns.find((candidate) => candidate.typeCode === typeCode);
+    const count = counts.get(typeCode) ?? 0;
+    return {
+      typeCode,
+      typeName: run?.typeName || typeName,
+      count,
+      percentage: total ? count / total : 0
+    };
+  });
+  const unknownRows = Array.from(counts.entries())
+    .filter(([typeCode]) => !TYPE_CATALOG.some((item) => item.typeCode === typeCode))
+    .map(([typeCode, count]) => ({
+      typeCode,
+      typeName: validRuns.find((candidate) => candidate.typeCode === typeCode)?.typeName || typeCode,
+      count,
+      percentage: total ? count / total : 0
+    }));
+  return [...catalogRows, ...unknownRows];
 }
 
 function buildAxisRadar(validRuns: QuizRunSummary[], compareTypeCodes: string[]): AxisRadarRow[] {
@@ -210,11 +273,76 @@ function buildFeedbackRatings(runs: QuizRunSummary[]): FeedbackRatingRow[] {
     .sort((a, b) => Number(a.rating) - Number(b.rating));
 }
 
-function buildTagRows(tags: string[]): TagRow[] {
+function buildPreferenceHighlights(validRuns: QuizRunSummary[]): PreferenceHighlightRow[] {
+  const groups = new Map<
+    string,
+    {
+      category: PreferenceHighlightRow["category"];
+      questionId: string;
+      label: string;
+      valueLabel: string;
+      count: number;
+      total: number;
+    }
+  >();
+
+  for (const answer of validRuns.flatMap((run) => run.answers)) {
+    if (!PREFERENCE_HIGHLIGHT_QUESTIONS.has(answer.questionId)) continue;
+    const category = getPreferenceCategory(answer.questionId, answer.questionStage);
+    const valueLabel = getPreferenceValueLabel(answer);
+    const key = `${category}:${answer.questionId}:${valueLabel}`;
+    const bucket = groups.get(key) ?? {
+      category,
+      questionId: answer.questionId,
+      label: answer.questionLabel,
+      valueLabel,
+      count: 0,
+      total: 0
+    };
+    if (isPositivePreference(answer.direction, answer.selected)) bucket.count += 1;
+    bucket.total += 1;
+    groups.set(key, bucket);
+  }
+
+  return Array.from(groups.values())
+    .filter((row) => row.total > 0)
+    .map((row) => ({
+      id: `${row.category}:${row.questionId}`,
+      category: row.category,
+      questionId: row.questionId,
+      label: row.label,
+      valueLabel: row.valueLabel,
+      percentage: row.count / row.total,
+      sampleSize: row.total
+    }))
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, 18);
+}
+
+function buildTagRows(tagLists: string[][]): TagRow[] {
+  const totalRuns = tagLists.length;
+  const tags = tagLists.flatMap((list) => Array.from(new Set(list.filter(Boolean))));
   return Array.from(countBy(tags, (tag) => tag).entries())
-    .map(([name, value]) => ({ name, value }))
+    .map(([name, value]) => ({ name, value, percentage: totalRuns ? value / totalRuns : 0 }))
     .sort((a, b) => b.value - a.value)
     .slice(0, 24);
+}
+
+function getPreferenceCategory(questionId: string, questionStage: string): PreferenceHighlightRow["category"] {
+  if (questionStage === "ALLERGENS") return "allergen";
+  if (questionId.startsWith("protein_")) return "protein";
+  if (questionId.startsWith("topping_")) return "topping";
+  return "flavor";
+}
+
+function getPreferenceValueLabel(answer: QuizRunSummary["answers"][number]) {
+  if (answer.questionStage === "ALLERGENS") return "selected";
+  return answer.rightLabel || "right";
+}
+
+function isPositivePreference(direction: string, selected: boolean | null) {
+  if (selected !== null) return selected;
+  return direction === "right" || direction === "selected";
 }
 
 function buildVersionAnalysis(runs: QuizRunSummary[], includeLoadTest = false): VersionAnalysisRow[] {
