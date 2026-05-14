@@ -31,6 +31,8 @@ require.extensions[".ts"] = function compileTs(module, filename) {
 
 const { normalizeCsvRow } = require("../src/parser/normalize.ts");
 const { buildAnalytics } = require("../src/analytics/build-analytics.ts");
+const { createSampleCsv } = require("../src/data/sample-csv.ts");
+const Papa = require("papaparse");
 
 function analyzeRows(rows, fileName = "fixture.csv") {
   const events = [];
@@ -123,5 +125,19 @@ const dynamo = analyzeRows([dynamoRow], "dynamodb-attribute-value.csv");
 assert.equal(dynamo.events[0]?.eventType, "quiz_result");
 assert.equal(dynamo.runs[0]?.typeCode, "CKLF");
 assert.equal(dynamo.runs[0]?.pagePath, "/");
+
+const sampleCsv = Papa.parse(createSampleCsv(), { header: true, skipEmptyLines: true });
+assert.equal(sampleCsv.errors.length, 0);
+const sample = analyzeRows(sampleCsv.data, "synthetic-ramen-events.csv");
+const validSampleRuns = sample.runs.filter((run) => run.isValidCompleted && !run.isLoadTest);
+const sampleTypeCounts = new Map();
+for (const run of validSampleRuns) {
+  sampleTypeCounts.set(run.typeCode, (sampleTypeCounts.get(run.typeCode) ?? 0) + 1);
+}
+assert.equal(validSampleRuns.length, 48);
+assert.equal(sampleTypeCounts.size, 16);
+for (const [typeCode, count] of sampleTypeCounts) {
+  assert.ok(count >= 3, `${typeCode} should have at least 3 demo runs`);
+}
 
 console.log("analytics regression checks passed");

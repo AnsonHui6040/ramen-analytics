@@ -253,7 +253,7 @@ export const dictionaries = {
     demo: {
       title: "示範預覽",
       description:
-        "點示範模式會載入合成範例 CSV，包含有效完成測驗、壓力測試排除、重複答案快照、不完整測驗與 JSON 格式錯誤範例。",
+        "點示範模式會載入合成範例 CSV，每個 16 型至少 3 筆有效完成測驗，並包含壓力測試排除、不完整測驗與 JSON 格式錯誤範例。",
       tiles: ["16 型百分比分布", "四軸 16 型排行", "完成漏斗", "驗證問題"],
       cards: [
         ["10 萬筆以上", "背景解析與記憶化儀表板轉換"],
@@ -503,7 +503,7 @@ export const dictionaries = {
     demo: {
       title: "Demo preview",
       description:
-        "Demo mode loads a synthetic sample CSV with valid runs, load-test exclusion, duplicate answer_snapshot, incomplete run, and malformed JSON examples.",
+        "Demo mode loads a synthetic sample CSV with at least 3 valid completed runs per 16-type, plus load-test exclusion, incomplete run, and malformed JSON examples.",
       tiles: ["16-type distribution", "4-axis rankings", "Completion funnel", "Validation issues"],
       cards: [
         ["100k+ rows", "Worker parsing and memoized dashboard transforms"],
@@ -754,7 +754,7 @@ export const dictionaries = {
     demo: {
       title: "デモプレビュー",
       description:
-        "デモモードでは、有効完了クイズ、負荷テスト除外、重複回答記録、不完全なクイズ、JSON 形式エラーを含む合成サンプル CSV を読み込みます。",
+        "デモモードでは、16タイプごとに3件以上の有効完了クイズを含む合成サンプル CSV を読み込み、負荷テスト除外、不完全なクイズ、JSON 形式エラーも含みます。",
       tiles: ["16タイプ分布", "4軸ランキング", "完了ファネル", "検証問題"],
       cards: [
         ["10 万行以上", "バックグラウンド解析とメモ化されたダッシュボード変換"],
