@@ -134,10 +134,10 @@ const sampleTypeCounts = new Map();
 for (const run of validSampleRuns) {
   sampleTypeCounts.set(run.typeCode, (sampleTypeCounts.get(run.typeCode) ?? 0) + 1);
 }
-assert.equal(validSampleRuns.length, 48);
+assert.equal(validSampleRuns.length, 288);
 assert.equal(sampleTypeCounts.size, 16);
 for (const [typeCode, count] of sampleTypeCounts) {
-  assert.ok(count >= 3, `${typeCode} should have at least 3 demo runs`);
+  assert.ok(count >= 18, `${typeCode} should have at least 18 demo runs`);
 }
 
 console.log("analytics regression checks passed");

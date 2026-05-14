@@ -86,7 +86,7 @@ const typeProfiles = [
 export function createSampleCsv() {
   const rows: SampleRow[] = [];
   const base = Date.UTC(2026, 4, 15, 4, 0, 0);
-  const validProfiles = typeProfiles.flatMap((profile) => [profile, profile, profile]);
+  const validProfiles = typeProfiles.flatMap((profile) => Array.from({ length: 18 }, () => profile));
 
   validProfiles.forEach((profile, index) => {
     addCompleteRun(rows, base, index, profile, "production", index % 4 === 0);

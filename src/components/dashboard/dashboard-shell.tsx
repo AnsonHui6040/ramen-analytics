@@ -90,7 +90,6 @@ export function DashboardShell() {
           feedbackRatings: view.feedbackRatings,
           flavorTags: view.flavorTags,
           allergenWarnings: view.allergenWarnings,
-          versionAnalysis: view.versionAnalysis,
           issuePareto: view.issuePareto,
           personaSegments: view.personaSegments,
           dataQualityRows: view.dataQualityRows,

@@ -1,5 +1,9 @@
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+"use client";
+
+import * as React from "react";
+import { AlertTriangle, Check, CheckCircle2, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { issueCategoryLabels, severityLabels, type Dictionary, type Locale } from "@/i18n/dictionary";
@@ -29,10 +33,22 @@ export function ValidationPanel({
   locale: Locale;
 }) {
   const counts = new Map<IssueCategory, number>();
+  const [copyState, setCopyState] = React.useState<"idle" | "copied" | "failed">("idle");
   for (const issue of issues) {
     counts.set(issue.category, (counts.get(issue.category) ?? 0) + 1);
   }
   const hasErrors = issues.some((issue) => issue.severity === "error");
+
+  const copyIssues = async () => {
+    try {
+      await window.navigator.clipboard.writeText(formatIssuesForCopy(issues, locale));
+      setCopyState("copied");
+      window.setTimeout(() => setCopyState("idle"), 1600);
+    } catch {
+      setCopyState("failed");
+      window.setTimeout(() => setCopyState("idle"), 2200);
+    }
+  };
 
   return (
     <Card>
@@ -41,10 +57,20 @@ export function ValidationPanel({
           <CardTitle>{t.validation.title}</CardTitle>
           <CardDescription>{t.validation.description}</CardDescription>
         </div>
-        <Badge variant={hasErrors ? "destructive" : "secondary"} className="gap-1">
-          {hasErrors ? <AlertTriangle className="size-3" /> : <CheckCircle2 className="size-3" />}
-          {formatNumber(issues.length, undefined, locale)} {t.validation.issues}
-        </Badge>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={copyIssues} disabled={!issues.length}>
+            {copyState === "copied" ? <Check /> : <Copy />}
+            {copyState === "copied"
+              ? t.validation.copiedIssues
+              : copyState === "failed"
+                ? t.validation.copyFailed
+                : t.validation.copyIssues}
+          </Button>
+          <Badge variant={hasErrors ? "destructive" : "secondary"} className="gap-1">
+            {hasErrors ? <AlertTriangle className="size-3" /> : <CheckCircle2 className="size-3" />}
+            {formatNumber(issues.length, undefined, locale)} {t.validation.issues}
+          </Badge>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -94,4 +120,25 @@ export function ValidationPanel({
       </CardContent>
     </Card>
   );
+}
+
+function formatIssuesForCopy(issues: ValidationIssue[], locale: Locale) {
+  const header = ["severity", "category", "runIdHash", "rowNumber", "fileName", "eventType", "field", "message"];
+  const rows = issues.map((issue) =>
+    [
+      severityLabels[locale][issue.severity],
+      issueCategoryLabels[locale][issue.category],
+      issue.runIdHash ?? "",
+      issue.rowNumber ?? "",
+      issue.fileName ?? "",
+      issue.eventType ?? "",
+      issue.field ?? "",
+      localizeIssueMessage(issue, locale)
+    ].map(escapeTsvCell)
+  );
+  return [header.join("\t"), ...rows.map((row) => row.join("\t"))].join("\n");
+}
+
+function escapeTsvCell(value: string | number) {
+  return String(value).replaceAll("\t", " ").replaceAll("\n", " ");
 }

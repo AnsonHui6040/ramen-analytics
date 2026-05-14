@@ -10,8 +10,6 @@ import {
   FunnelChart,
   LabelList,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -284,40 +282,6 @@ export function AnalyticsCharts({ view, t, locale }: AnalyticsChartsProps) {
         )}
       </ChartPanel>
 
-      <ChartPanel
-        id="chart-version-analysis"
-        title={t.charts.versionAnalysis.title}
-        description={t.charts.versionAnalysis.description}
-        exportLabel={t.charts.exportPng(t.charts.versionAnalysis.title)}
-        errorLabel={t.charts.pngExportFailed}
-      >
-        {view.versionAnalysis.length ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={view.versionAnalysis} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="appVersion" />
-              <YAxis yAxisId="rate" tickFormatter={(value) => `${Math.round(Number(value) * 100)}%`} />
-              <YAxis yAxisId="rating" orientation="right" domain={[0, 5]} />
-              <Tooltip
-                formatter={(value, name, item) => {
-                  const key = String(item.dataKey ?? name);
-                  const translatedName = t.charts.versionSeries[key as keyof typeof t.charts.versionSeries] ?? name;
-                  if (key === "averageRating") return [formatDecimal(Number(value), 2, locale), translatedName];
-                  return [formatPercent(Number(value), 1, locale), translatedName];
-                }}
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: "hsl(var(--popover-foreground))" }}
-              />
-              <Legend />
-              <Line yAxisId="rate" type="monotone" dataKey="completionRate" name={t.charts.versionSeries.completionRate} stroke={COLORS[0]} strokeWidth={2} />
-              <Line yAxisId="rate" type="monotone" dataKey="feedbackRate" name={t.charts.versionSeries.feedbackRate} stroke={COLORS[2]} strokeWidth={2} />
-              <Line yAxisId="rating" type="monotone" dataKey="averageRating" name={t.charts.versionSeries.averageRating} stroke={COLORS[1]} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <NoData label={t.charts.noData} />
-        )}
-      </ChartPanel>
     </section>
   );
 }

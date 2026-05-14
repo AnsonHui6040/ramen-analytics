@@ -192,6 +192,9 @@ export const dictionaries = {
       title: "驗證面板",
       description: "JSON 格式錯誤、重複事件、不完整測驗與資料結構一致性檢查",
       issues: "項問題",
+      copyIssues: "複製錯誤資訊",
+      copiedIssues: "已複製",
+      copyFailed: "複製失敗",
       noIssues: "目前篩選條件沒有驗證問題"
     },
     tables: {
@@ -253,7 +256,7 @@ export const dictionaries = {
     demo: {
       title: "示範預覽",
       description:
-        "點示範模式會載入合成範例 CSV，每個 16 型至少 3 筆有效完成測驗，並包含壓力測試排除、不完整測驗與 JSON 格式錯誤範例。",
+        "點示範模式會載入合成範例 CSV，每個 16 型至少 18 筆有效完成測驗，並包含壓力測試排除、不完整測驗與 JSON 格式錯誤範例。",
       tiles: ["16 型百分比分布", "四軸 16 型排行", "完成漏斗", "驗證問題"],
       cards: [
         ["10 萬筆以上", "背景解析與記憶化儀表板轉換"],
@@ -441,6 +444,9 @@ export const dictionaries = {
       title: "Validation Panel",
       description: "malformed rows, duplicate events, incomplete runs, and schema consistency checks",
       issues: "issues",
+      copyIssues: "Copy issues",
+      copiedIssues: "Copied",
+      copyFailed: "Copy failed",
       noIssues: "No validation issues for current filters"
     },
     tables: {
@@ -503,7 +509,7 @@ export const dictionaries = {
     demo: {
       title: "Demo preview",
       description:
-        "Demo mode loads a synthetic sample CSV with at least 3 valid completed runs per 16-type, plus load-test exclusion, incomplete run, and malformed JSON examples.",
+        "Demo mode loads a synthetic sample CSV with at least 18 valid completed runs per 16-type, plus load-test exclusion, incomplete run, and malformed JSON examples.",
       tiles: ["16-type distribution", "4-axis rankings", "Completion funnel", "Validation issues"],
       cards: [
         ["100k+ rows", "Worker parsing and memoized dashboard transforms"],
@@ -692,6 +698,9 @@ export const dictionaries = {
       title: "検証パネル",
       description: "JSON 形式エラー、重複イベント、不完全なクイズ、データ構造の整合性チェック",
       issues: "件の問題",
+      copyIssues: "エラー情報をコピー",
+      copiedIssues: "コピー済み",
+      copyFailed: "コピー失敗",
       noIssues: "現在のフィルターに検証問題はありません"
     },
     tables: {
@@ -754,7 +763,7 @@ export const dictionaries = {
     demo: {
       title: "デモプレビュー",
       description:
-        "デモモードでは、16タイプごとに3件以上の有効完了クイズを含む合成サンプル CSV を読み込み、負荷テスト除外、不完全なクイズ、JSON 形式エラーも含みます。",
+        "デモモードでは、16タイプごとに18件以上の有効完了クイズを含む合成サンプル CSV を読み込み、負荷テスト除外、不完全なクイズ、JSON 形式エラーも含みます。",
       tiles: ["16タイプ分布", "4軸ランキング", "完了ファネル", "検証問題"],
       cards: [
         ["10 万行以上", "バックグラウンド解析とメモ化されたダッシュボード変換"],
