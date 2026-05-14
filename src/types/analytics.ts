@@ -86,8 +86,19 @@ export interface RunTableRow {
   status: string;
   typeCode: string;
   typeName: string;
+  pagePath: string;
   appVersion: string;
+  schemaVersion: string;
+  questionnaireVersion: string;
+  resultVersion: string;
   source: string;
+  mainCategory: string;
+  subCategory: string;
+  topShare: number | null;
+  secondShare: number | null;
+  borderlineCode: string;
+  borderlineDistance: number | null;
+  confidenceScore: number | null;
   hasFeedback: boolean;
   rating: number | null;
   eventCount: number;
@@ -122,6 +133,41 @@ export interface FeedbackTableRow {
   timestamp?: string;
 }
 
+export interface DataQualityRow {
+  quizRunIdHash: string;
+  status: string;
+  pagePath: string;
+  hasStarted: boolean;
+  hasAnswerSnapshot: boolean;
+  hasQuizResult: boolean;
+  hasFeedback: boolean;
+  answerCompleteness: number;
+  issueCount: number;
+  criticalIssueCount: number;
+  missingEvents: string;
+}
+
+export interface IssueParetoRow {
+  category: string;
+  count: number;
+  percentage: number;
+  cumulativePercentage: number;
+}
+
+export interface PersonaSegmentRow {
+  segmentId: string;
+  label: string;
+  count: number;
+  percentage: number;
+  topTypeCode: string;
+  feedbackRate: number;
+  averageRating: number | null;
+  richnessAxis: number;
+  brothBodyAxis: number;
+  impactAxis: number;
+  noodleBodyAxis: number;
+}
+
 export interface DashboardView {
   filteredRuns: QuizRunSummary[];
   filteredIssues: ValidationIssue[];
@@ -139,6 +185,9 @@ export interface DashboardView {
   runRows: RunTableRow[];
   answerRows: AnswerTableRow[];
   feedbackRows: FeedbackTableRow[];
+  dataQualityRows: DataQualityRow[];
+  issuePareto: IssueParetoRow[];
+  personaSegments: PersonaSegmentRow[];
   issueRows: ValidationIssue[];
   availableTypeCodes: string[];
   availableAppVersions: string[];

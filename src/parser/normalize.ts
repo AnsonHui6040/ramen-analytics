@@ -11,6 +11,15 @@ const SESSION_ID_KEYS = ["sessionId", "session_id", "session", "anonymousId", "a
 const TIMESTAMP_KEYS = ["timestamp", "createdAt", "created_at", "eventTime", "event_time", "time", "date"];
 const APP_VERSION_KEYS = ["appVersion", "app_version", "version", "buildVersion", "build_version"];
 const SOURCE_KEYS = ["source", "origin", "channel", "env", "environment"];
+const PAGE_KEYS = ["page", "pagePath", "page_path", "path", "pathname", "urlPath", "url_path"];
+const SCHEMA_VERSION_KEYS = ["schemaVersion", "schema_version", "eventSchemaVersion", "event_schema_version"];
+const QUESTIONNAIRE_VERSION_KEYS = [
+  "questionnaireVersion",
+  "questionnaire_version",
+  "questionSetVersion",
+  "question_set_version"
+];
+const RESULT_VERSION_KEYS = ["resultVersion", "result_version", "scoringVersion", "scoring_version"];
 
 export interface NormalizeContext {
   fileName: string;
@@ -40,7 +49,7 @@ export function normalizeCsvRow(rowInput: unknown, context: NormalizeContext): N
     };
   }
 
-  const row = rowResult.data;
+  const row = unwrapDynamoDbRecord(rowResult.data);
   const issues: ValidationIssue[] = [];
   const payloadParse = parseJsonField(pickDirect(row, ["payload"]), "payload", context);
   const rawParse = parseJsonField(pickDirect(row, ["rawEvent", "raw_event", "eventJson", "event_json"]), "rawEvent", context);
@@ -50,7 +59,10 @@ export function normalizeCsvRow(rowInput: unknown, context: NormalizeContext): N
   const rawEventPayload = parseNestedPayload(rawEvent?.payload, context);
   issues.push(...rawEventPayload.issues);
 
-  const payload = payloadParse.value ?? rawEventPayload.value ?? getRecord(rawEvent, "payload");
+  const payload = mergePayloads(
+    buildFlattenedPayload(row),
+    payloadParse.value ?? rawEventPayload.value ?? getRecord(rawEvent, "payload")
+  );
   const payloadRecord = toRecord(payload);
   const rawEventRecord = rawEvent;
   const nestedEvent = toRecord(rawEventRecord?.event);
@@ -68,6 +80,13 @@ export function normalizeCsvRow(rowInput: unknown, context: NormalizeContext): N
     coerceString(pickAny(APP_VERSION_KEYS, row, payloadRecord, rawEventRecord, nestedEvent)) || "unknown";
   const source =
     coerceString(pickAny(SOURCE_KEYS, row, payloadRecord, rawEventRecord, nestedEvent)) || "unknown";
+  const pagePath = coerceString(pickAny(PAGE_KEYS, row, payloadRecord, rawEventRecord, nestedEvent));
+  const schemaVersion =
+    coerceString(pickAny(SCHEMA_VERSION_KEYS, row, payloadRecord, rawEventRecord, nestedEvent)) || "unknown";
+  const questionnaireVersion =
+    coerceString(pickAny(QUESTIONNAIRE_VERSION_KEYS, row, payloadRecord, rawEventRecord, nestedEvent)) || "unknown";
+  const resultVersion =
+    coerceString(pickAny(RESULT_VERSION_KEYS, row, payloadRecord, rawEventRecord, nestedEvent)) || "unknown";
   const timestamp = normalizeTimestamp(pickAny(TIMESTAMP_KEYS, row, payloadRecord, rawEventRecord, nestedEvent));
 
   const quizRunIdHash = rawQuizRunId
@@ -125,6 +144,10 @@ export function normalizeCsvRow(rowInput: unknown, context: NormalizeContext): N
     timestamp,
     appVersion,
     source,
+    pagePath: pagePath || undefined,
+    schemaVersion,
+    questionnaireVersion,
+    resultVersion,
     isLoadTest: detectLoadTest({
       row,
       payload: payloadRecord,
@@ -147,6 +170,158 @@ export function normalizeCsvRow(rowInput: unknown, context: NormalizeContext): N
     })),
     malformed: issues.some((issue) => issue.category === "malformed_json")
   };
+}
+
+function unwrapDynamoDbRecord(record: JsonRecord) {
+  const output: JsonRecord = {};
+  for (const [key, value] of Object.entries(record)) {
+    output[key] = unwrapDynamoDbValue(value);
+  }
+  return output;
+}
+
+function unwrapDynamoDbValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return value;
+    try {
+      return unwrapDynamoDbValue(JSON.parse(trimmed));
+    } catch {
+      return value;
+    }
+  }
+
+  const record = toRecord(value);
+  if (!record) return value;
+
+  const keys = Object.keys(record);
+  if (keys.length === 1) {
+    if ("S" in record) return record.S;
+    if ("N" in record) {
+      const number = Number(record.N);
+      return Number.isFinite(number) ? number : record.N;
+    }
+    if ("BOOL" in record) return Boolean(record.BOOL);
+    if ("NULL" in record) return null;
+    if ("M" in record) return unwrapDynamoDbRecord(toRecord(record.M) ?? {});
+    if ("L" in record && Array.isArray(record.L)) return record.L.map(unwrapDynamoDbValue);
+  }
+
+  const output: JsonRecord = {};
+  for (const [key, item] of Object.entries(record)) {
+    output[key] = unwrapDynamoDbValue(item);
+  }
+  return output;
+}
+
+function buildFlattenedPayload(row: JsonRecord) {
+  const payloadKeys = [
+    "quizRunId",
+    "quiz_run_id",
+    "questionId",
+    "question_id",
+    "questionStage",
+    "question_stage",
+    "questionText",
+    "question_text",
+    "leftLabel",
+    "left_label",
+    "rightLabel",
+    "right_label",
+    "answerValue",
+    "answer_value",
+    "answerLabel",
+    "answer_label",
+    "answerDirection",
+    "answer_direction",
+    "questionIndex",
+    "question_index",
+    "isFinalSnapshot",
+    "is_final_snapshot",
+    "answerCount",
+    "answer_count",
+    "answersLength",
+    "answers_length",
+    "schemaVersion",
+    "schema_version",
+    "questionnaireVersion",
+    "questionnaire_version",
+    "resultVersion",
+    "result_version",
+    "typeCode",
+    "type_code",
+    "typeName",
+    "type_name",
+    "archetypeCode",
+    "archetype_code",
+    "archetypeName",
+    "archetype_name",
+    "mainCategory",
+    "main_category",
+    "subCategory",
+    "sub_category",
+    "topShare",
+    "top_share",
+    "secondShare",
+    "second_share",
+    "borderlineCode",
+    "borderline_code",
+    "borderlineName",
+    "borderline_name",
+    "borderlineDistance",
+    "borderline_distance",
+    "borderlineStrength",
+    "borderline_strength",
+    "confidenceScore",
+    "confidence_score",
+    "reasonTop4",
+    "reason_top_4",
+    "scoreBreakdown",
+    "score_breakdown",
+    "axes",
+    "topFlavorTags",
+    "top_flavor_tags",
+    "flavorTags",
+    "flavor_tags",
+    "allergenWarnings",
+    "allergen_warnings",
+    "recommendationSummary",
+    "recommendation_summary",
+    "rating",
+    "comment",
+    "feedback",
+    "message",
+    "submittedAt",
+    "submitted_at",
+    "answeredAt",
+    "answered_at",
+    "startedAt",
+    "started_at",
+    "resultGeneratedAt",
+    "result_generated_at",
+    "snapshotGeneratedAt",
+    "snapshot_generated_at",
+    "locale",
+    "testMode",
+    "test_mode",
+    "loadTestId",
+    "load_test_id",
+    "isLoadTest",
+    "is_load_test"
+  ];
+
+  const payload: JsonRecord = {};
+  for (const key of payloadKeys) {
+    if (row[key] !== undefined && row[key] !== null && row[key] !== "") payload[key] = row[key];
+  }
+  return payload;
+}
+
+function mergePayloads(flattenedPayload: JsonRecord, parsedPayload: unknown) {
+  const parsedRecord = toRecord(parsedPayload);
+  if (parsedRecord) return { ...flattenedPayload, ...parsedRecord };
+  if (parsedPayload !== undefined) return parsedPayload;
+  return Object.keys(flattenedPayload).length ? flattenedPayload : undefined;
 }
 
 function parseNestedPayload(value: unknown, context: NormalizeContext) {

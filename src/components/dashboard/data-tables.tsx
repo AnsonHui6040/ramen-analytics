@@ -21,6 +21,8 @@ export function DataTables({ view, t, locale }: { view: DashboardView; t: Dictio
   const runRows = filterRows(view.runRows, normalizedQuery);
   const answerRows = filterRows(view.answerRows, normalizedQuery);
   const feedbackRows = filterRows(view.feedbackRows, normalizedQuery);
+  const dataQualityRows = filterRows(view.dataQualityRows, normalizedQuery);
+  const personaSegments = filterRows(view.personaSegments, normalizedQuery);
   const issueRows = filterRows(view.issueRows, normalizedQuery);
 
   return (
@@ -46,6 +48,8 @@ export function DataTables({ view, t, locale }: { view: DashboardView; t: Dictio
             <TabsTrigger value="runs">{t.tables.runs} ({formatNumber(runRows.length, undefined, locale)})</TabsTrigger>
             <TabsTrigger value="answers">{t.tables.answers} ({formatNumber(answerRows.length, undefined, locale)})</TabsTrigger>
             <TabsTrigger value="feedback">{t.tables.feedback} ({formatNumber(feedbackRows.length, undefined, locale)})</TabsTrigger>
+            <TabsTrigger value="quality">Quality ({formatNumber(dataQualityRows.length, undefined, locale)})</TabsTrigger>
+            <TabsTrigger value="segments">Segments ({formatNumber(personaSegments.length, undefined, locale)})</TabsTrigger>
             <TabsTrigger value="issues">{t.tables.issues} ({formatNumber(issueRows.length, undefined, locale)})</TabsTrigger>
           </TabsList>
 
@@ -57,7 +61,18 @@ export function DataTables({ view, t, locale }: { view: DashboardView; t: Dictio
                 t.tables.headers.status,
                 t.tables.headers.type,
                 t.tables.headers.version,
+                "Schema",
+                "Q Ver.",
+                "Result Ver.",
+                "Page",
                 t.tables.headers.source,
+                "Main",
+                "Sub",
+                "Top %",
+                "2nd %",
+                "Border",
+                "Dist.",
+                "Conf.",
                 t.tables.headers.feedback,
                 t.tables.headers.rating,
                 t.tables.headers.events,
@@ -76,7 +91,18 @@ export function DataTables({ view, t, locale }: { view: DashboardView; t: Dictio
                   </TableCell>
                   <TableCell>{row.typeCode === "unknown" ? t.values.unknown : row.typeCode}</TableCell>
                   <TableCell>{row.appVersion}</TableCell>
+                  <TableCell>{row.schemaVersion}</TableCell>
+                  <TableCell>{row.questionnaireVersion}</TableCell>
+                  <TableCell>{row.resultVersion}</TableCell>
+                  <TableCell className="max-w-[180px] truncate">{row.pagePath}</TableCell>
                   <TableCell>{sourceLabel(row.source, t)}</TableCell>
+                  <TableCell>{row.mainCategory}</TableCell>
+                  <TableCell>{row.subCategory}</TableCell>
+                  <TableCell>{formatDecimal(row.topShare, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.secondShare, 1, locale)}</TableCell>
+                  <TableCell>{row.borderlineCode}</TableCell>
+                  <TableCell>{formatDecimal(row.borderlineDistance, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.confidenceScore, 1, locale)}</TableCell>
                   <TableCell>{row.hasFeedback ? t.values.yes : t.values.no}</TableCell>
                   <TableCell>{formatDecimal(row.rating, 1, locale)}</TableCell>
                   <TableCell>{formatNumber(row.eventCount, undefined, locale)}</TableCell>
@@ -148,6 +174,82 @@ export function DataTables({ view, t, locale }: { view: DashboardView; t: Dictio
                   <TableCell>{row.appVersion}</TableCell>
                   <TableCell>{sourceLabel(row.source, t)}</TableCell>
                   <TableCell>{row.timestamp ?? ""}</TableCell>
+                </TableRow>
+              ))}
+            </TableShell>
+          </TabsContent>
+
+          <TabsContent value="quality">
+            <TableShell
+              rows={dataQualityRows}
+              columns={[
+                t.tables.headers.runHash,
+                t.tables.headers.status,
+                "Page",
+                "Started",
+                "Snapshot",
+                "Result",
+                t.tables.headers.feedback,
+                "Complete",
+                "Issues",
+                "Errors",
+                "Missing"
+              ]}
+              t={t}
+              locale={locale}
+            >
+              {dataQualityRows.slice(0, ROW_LIMIT).map((row) => (
+                <TableRow key={row.quizRunIdHash}>
+                  <TableCell className="font-mono text-xs">{row.quizRunIdHash}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.status === "valid" ? "secondary" : row.status === "load-test" ? "muted" : "destructive"}>
+                      {statusLabel(row.status, t)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate">{row.pagePath}</TableCell>
+                  <TableCell>{row.hasStarted ? t.values.yes : t.values.no}</TableCell>
+                  <TableCell>{row.hasAnswerSnapshot ? t.values.yes : t.values.no}</TableCell>
+                  <TableCell>{row.hasQuizResult ? t.values.yes : t.values.no}</TableCell>
+                  <TableCell>{row.hasFeedback ? t.values.yes : t.values.no}</TableCell>
+                  <TableCell>{formatDecimal(row.answerCompleteness * 100, 1, locale)}%</TableCell>
+                  <TableCell>{formatNumber(row.issueCount, undefined, locale)}</TableCell>
+                  <TableCell>{formatNumber(row.criticalIssueCount, undefined, locale)}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">{row.missingEvents}</TableCell>
+                </TableRow>
+              ))}
+            </TableShell>
+          </TabsContent>
+
+          <TabsContent value="segments">
+            <TableShell
+              rows={personaSegments}
+              columns={[
+                "Segment",
+                "Runs",
+                "Share",
+                t.tables.headers.type,
+                t.tables.headers.feedback,
+                t.tables.headers.rating,
+                "Rich",
+                "Broth",
+                "Impact",
+                "Noodle"
+              ]}
+              t={t}
+              locale={locale}
+            >
+              {personaSegments.slice(0, ROW_LIMIT).map((row) => (
+                <TableRow key={row.segmentId}>
+                  <TableCell className="min-w-[260px]">{row.label}</TableCell>
+                  <TableCell>{formatNumber(row.count, undefined, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.percentage * 100, 1, locale)}%</TableCell>
+                  <TableCell>{row.topTypeCode}</TableCell>
+                  <TableCell>{formatDecimal(row.feedbackRate * 100, 1, locale)}%</TableCell>
+                  <TableCell>{formatDecimal(row.averageRating, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.richnessAxis, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.brothBodyAxis, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.impactAxis, 1, locale)}</TableCell>
+                  <TableCell>{formatDecimal(row.noodleBodyAxis, 1, locale)}</TableCell>
                 </TableRow>
               ))}
             </TableShell>

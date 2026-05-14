@@ -1,4 +1,4 @@
-import { AXIS_KEYS, type AxisKey, type AxisValues, type ClientEvent, type FeedbackEntry, type IssueCategory, type NormalizedAnswer, type ParsedEvent, type QuizRunSummary, type ValidationIssue } from "@/types/events";
+import { AXIS_KEYS, type AxisKey, type AxisValues, type ClientEvent, type FeedbackEntry, type IssueCategory, type NormalizedAnswer, type ParsedEvent, type QuizRunSummary, type ResultInsights, type ValidationIssue } from "@/types/events";
 import { QUESTION_AXIS_MAP, QUESTIONNAIRE_EXPECTED_ANSWER_COUNT } from "@/analytics/questionnaire-baseline";
 import { hashString } from "@/parser/hash";
 import { createIssue } from "@/validation/issues";
@@ -41,6 +41,7 @@ export function buildAnalytics(
     const isLoadTest = runEvents.some((event) => event.isLoadTest);
     const hasStarted = runEvents.some((event) => event.eventType === "quiz_started");
     const answerSnapshots = runEvents.filter((event) => event.eventType === "answer_snapshot");
+    const questionAnswerEvents = runEvents.filter((event) => event.eventType === "question_answer");
     const quizResults = runEvents.filter((event) => event.eventType === "quiz_result");
     const feedbackEvents = runEvents.filter((event) => event.eventType === "feedback");
     const fingerprintCounts = countBy(runEvents, (event) => event.fingerprintHash);
@@ -91,14 +92,22 @@ export function buildAnalytics(
     }
 
     const answerSnapshot = answerSnapshots.at(-1);
+    const syntheticSnapshot = answerSnapshot ? null : extractSyntheticSnapshot(questionAnswerEvents);
+    const hasAnswerSnapshot = Boolean(answerSnapshot) || Boolean(syntheticSnapshot);
+    const answerSnapshotSource = answerSnapshot ?? syntheticSnapshot?.sourceEvent;
     const quizResult = quizResults.at(-1);
-    const answers = answerSnapshot ? extractAnswers(answerSnapshot) : [];
+    const answers = answerSnapshot ? extractAnswers(answerSnapshot) : syntheticSnapshot?.answers ?? [];
     const resultPayload = quizResult?.payload ?? getRecord(answerSnapshot?.payload, "result");
     const typeInfo = extractTypeInfo(resultPayload, answerSnapshot?.payload);
     const axes = extractAxes(resultPayload, answerSnapshot?.payload);
+    const resultInsights = extractResultInsights(resultPayload, answerSnapshot?.payload, typeInfo);
     const feedbacks = feedbackEvents.map((event, index) => extractFeedback(event, index, exposeComments));
-    const expectedAnswerCount = extractExpectedAnswerCount(answerSnapshot?.payload, resultPayload);
-    const explicitAnswersLength = extractExplicitAnswersLength(answerSnapshot?.payload, resultPayload);
+    const expectedAnswerCount = syntheticSnapshot
+      ? QUESTIONNAIRE_EXPECTED_ANSWER_COUNT
+      : extractExpectedAnswerCount(answerSnapshot?.payload, resultPayload);
+    const explicitAnswersLength = syntheticSnapshot
+      ? syntheticSnapshot.answers.length
+      : extractExplicitAnswersLength(answerSnapshot?.payload, resultPayload);
 
     const invalidAxes = AXIS_KEYS.filter((axis) => {
       const value = axes[axis];
@@ -125,10 +134,10 @@ export function buildAnalytics(
           severity: "error",
           category: "answer_count_mismatch",
           message: `answerCount is ${expectedAnswerCount}, but payload.answers contains ${answers.length}`,
-          fileName: answerSnapshot?.fileName,
-          rowNumber: answerSnapshot?.rowNumber,
+          fileName: answerSnapshotSource?.fileName,
+          rowNumber: answerSnapshotSource?.rowNumber,
           runIdHash: quizRunIdHash,
-          eventType: "answer_snapshot",
+          eventType: answerSnapshot ? "answer_snapshot" : "question_answer",
           field: "answerCount"
         })
       );
@@ -140,32 +149,32 @@ export function buildAnalytics(
           severity: "error",
           category: "answers_length_mismatch",
           message: `answers.length metadata is ${explicitAnswersLength}, but payload.answers contains ${answers.length}`,
-          fileName: answerSnapshot?.fileName,
-          rowNumber: answerSnapshot?.rowNumber,
+          fileName: answerSnapshotSource?.fileName,
+          rowNumber: answerSnapshotSource?.rowNumber,
           runIdHash: quizRunIdHash,
-          eventType: "answer_snapshot",
+          eventType: answerSnapshot ? "answer_snapshot" : "question_answer",
           field: "answers.length"
         })
       );
     }
 
-    if (answerSnapshot && answers.length !== QUESTIONNAIRE_EXPECTED_ANSWER_COUNT) {
+    if (hasAnswerSnapshot && answers.length !== QUESTIONNAIRE_EXPECTED_ANSWER_COUNT) {
       runIssues.push(
         createIssue({
           severity: "error",
           category: "questionnaire_count_mismatch",
           message: `Questionnaire baseline expects ${QUESTIONNAIRE_EXPECTED_ANSWER_COUNT} answers, but payload.answers contains ${answers.length}`,
-          fileName: answerSnapshot.fileName,
-          rowNumber: answerSnapshot.rowNumber,
+          fileName: answerSnapshotSource?.fileName,
+          rowNumber: answerSnapshotSource?.rowNumber,
           runIdHash: quizRunIdHash,
-          eventType: "answer_snapshot",
-          field: "payload.answers"
+          eventType: answerSnapshot ? "answer_snapshot" : "question_answer",
+          field: answerSnapshot ? "payload.answers" : "question_answer.isFinalSnapshot"
         })
       );
     }
 
-    if (!answerSnapshot || !quizResult) {
-      const missing = [!answerSnapshot ? "answer_snapshot" : "", !quizResult ? "quiz_result" : ""].filter(Boolean);
+    if (!hasAnswerSnapshot || !quizResult) {
+      const missing = [!hasAnswerSnapshot ? "answer_snapshot" : "", !quizResult ? "quiz_result" : ""].filter(Boolean);
       runIssues.push(
         createIssue({
           severity: "warning",
@@ -186,13 +195,24 @@ export function buildAnalytics(
           .filter((category) => INVALID_FOR_COMPLETION.has(category))
       )
     );
-    const isValidCompleted = !isLoadTest && invalidReasonCodes.length === 0 && Boolean(answerSnapshot && quizResult);
+    const isValidCompleted = !isLoadTest && invalidReasonCodes.length === 0 && Boolean(hasAnswerSnapshot && quizResult);
+    resultInsights.confidenceScore = calculateConfidenceScore({
+      topShare: resultInsights.topShare,
+      secondShare: resultInsights.secondShare,
+      borderlineDistance: resultInsights.borderlineDistance,
+      answerCount: answers.length,
+      invalidReasonCodes
+    });
 
     issues.push(...runIssues.filter((issue) => !issues.some((existing) => existing.id === issue.id)));
 
     runs.push({
       quizRunIdHash,
       sessionIdHash: firstNonUnknown(runEvents.map((event) => event.sessionIdHash)),
+      pagePath: firstKnown(runEvents.map((event) => event.pagePath)),
+      schemaVersion: firstNonUnknown(runEvents.map((event) => event.schemaVersion)),
+      questionnaireVersion: firstNonUnknown(runEvents.map((event) => event.questionnaireVersion)),
+      resultVersion: firstNonUnknown(runEvents.map((event) => event.resultVersion)),
       firstSeenAt: minTimestamp(runEvents),
       lastSeenAt: maxTimestamp(runEvents),
       eventCount: runEvents.length,
@@ -202,7 +222,7 @@ export function buildAnalytics(
       isLoadTest,
       isValidCompleted,
       hasStarted,
-      hasAnswerSnapshot: Boolean(answerSnapshot),
+      hasAnswerSnapshot,
       hasQuizResult: Boolean(quizResult),
       hasFeedback: feedbacks.length > 0,
       duplicateEventCount,
@@ -214,6 +234,7 @@ export function buildAnalytics(
       typeCode: typeInfo.typeCode,
       typeName: typeInfo.typeName,
       axes,
+      resultInsights,
       flavorTags: extractStringList(resultPayload, [
         "topFlavorTags",
         "top_flavor_tags",
@@ -250,14 +271,69 @@ function toClientEvent(event: ParsedEvent): ClientEvent {
     fingerprintHash: event.fingerprintHash,
     quizRunIdHash: event.quizRunIdHash,
     sessionIdHash: event.sessionIdHash,
+    pagePath: event.pagePath,
     fileName: event.fileName,
     rowNumber: event.rowNumber,
     eventType: event.eventType,
     timestamp: event.timestamp,
     appVersion: event.appVersion,
     source: event.source,
+    schemaVersion: event.schemaVersion,
+    questionnaireVersion: event.questionnaireVersion,
+    resultVersion: event.resultVersion,
     isLoadTest: event.isLoadTest
   };
+}
+
+function extractSyntheticSnapshot(events: ParsedEvent[]) {
+  const latestByQuestion = new Map<
+    string,
+    {
+      event: ParsedEvent;
+      record: Record<string, unknown>;
+    }
+  >();
+
+  for (const event of events) {
+    const record = toRecord(event.payload) ?? {};
+    if (!isFinalSnapshotRecord(record)) continue;
+
+    const questionId = firstString(record, [
+      "questionId",
+      "question_id",
+      "questionKey",
+      "question_key",
+      "id",
+      "key"
+    ]);
+    if (!questionId) continue;
+    latestByQuestion.set(questionId, { event, record });
+  }
+
+  const snapshotRows = Array.from(latestByQuestion.values()).sort((a, b) => compareEventOrder(a.event, b.event));
+
+  if (snapshotRows.length === 0) return null;
+
+  return {
+    sourceEvent: snapshotRows[0].event,
+    answers: snapshotRows.map(({ event, record }, index) => normalizeAnswerRecord(event, record, index))
+  };
+}
+
+function isFinalSnapshotRecord(record: Record<string, unknown>) {
+  return (
+    coerceBoolean(
+      firstDefined(record, [
+        "isFinalSnapshot",
+        "is_final_snapshot",
+        "finalSnapshot",
+        "final_snapshot",
+        "snapshot",
+        "isSnapshot",
+        "is_snapshot"
+      ])
+    ) === true
+  );
 }
 
 function extractAnswers(event: ParsedEvent): NormalizedAnswer[] {
@@ -266,66 +342,69 @@ function extractAnswers(event: ParsedEvent): NormalizedAnswer[] {
   if (!Array.isArray(answersValue)) return [];
 
   return answersValue.map((answer, index) => {
-    const record = toRecord(answer) ?? {};
-    const questionId =
-      firstString(record, ["questionId", "question_id", "questionKey", "question_key", "id", "key"]) ||
-      `q${index + 1}`;
-    const questionLabel =
-      firstString(record, [
-        "questionLabel",
-        "question_label",
-        "questionText",
-        "question_text",
-        "label",
-        "title",
-        "question",
-        "text"
-      ]) || questionId;
-    const questionStage =
-      firstString(record, ["questionStage", "question_stage", "stage", "section", "flowState", "flow_state"]) ||
-      "UNKNOWN";
-    const leftLabel = firstString(record, ["leftLabel", "left_label", "minLabel", "min_label"]);
-    const rightLabel = firstString(record, ["rightLabel", "right_label", "maxLabel", "max_label"]);
-    const selected = coerceBoolean(
-      firstDefined(record, ["selected", "isSelected", "is_selected", "checked", "answered", "isAnswered"])
-    );
-    const value = coerceNumber(
-      firstDefined(record, ["answerValue", "answer_value", "value", "score", "weight", "axisValue", "axis_value"])
-    );
-    const direction = normalizeDirection(
-      firstDefined(record, [
-        "answerDirection",
-        "answer_direction",
-        "direction",
-        "choice",
-        "answer",
-        "side",
-        "selectedDirection",
-        "selected_direction"
-      ]),
-      value,
-      selected
-    );
-    const normalizedSelected =
-      selected ?? (direction === "selected" ? true : direction === "not_selected" ? false : null);
-    const axis = normalizeAxis(firstString(record, ["axis", "axisKey", "axis_key"])) ?? QUESTION_AXIS_MAP[questionId];
-
-    return {
-      id: hashString(`${event.quizRunIdHash}:${questionId}:${index}:${event.rowNumber}`, "answer"),
-      quizRunIdHash: event.quizRunIdHash,
-      questionId,
-      questionLabel,
-      questionStage,
-      leftLabel: leftLabel || undefined,
-      rightLabel: rightLabel || undefined,
-      direction,
-      selected: normalizedSelected,
-      axis,
-      value: value ?? undefined,
-      answerIndex: index,
-      sourceEventRow: event.rowNumber
-    };
+    return normalizeAnswerRecord(event, toRecord(answer) ?? {}, index);
   });
+}
+
+function normalizeAnswerRecord(event: ParsedEvent, record: Record<string, unknown>, index: number): NormalizedAnswer {
+  const questionId =
+    firstString(record, ["questionId", "question_id", "questionKey", "question_key", "id", "key"]) ||
+    `q${index + 1}`;
+  const questionLabel =
+    firstString(record, [
+      "questionLabel",
+      "question_label",
+      "questionText",
+      "question_text",
+      "label",
+      "title",
+      "question",
+      "text"
+    ]) || questionId;
+  const questionStage =
+    firstString(record, ["questionStage", "question_stage", "stage", "section", "flowState", "flow_state"]) ||
+    "UNKNOWN";
+  const leftLabel = firstString(record, ["leftLabel", "left_label", "minLabel", "min_label"]);
+  const rightLabel = firstString(record, ["rightLabel", "right_label", "maxLabel", "max_label"]);
+  const selected = coerceBoolean(
+    firstDefined(record, ["selected", "isSelected", "is_selected", "checked", "answered", "isAnswered"])
+  );
+  const value = coerceNumber(
+    firstDefined(record, ["answerValue", "answer_value", "value", "score", "weight", "axisValue", "axis_value"])
+  );
+  const direction = normalizeDirection(
+    firstDefined(record, [
+      "answerDirection",
+      "answer_direction",
+      "direction",
+      "choice",
+      "answer",
+      "side",
+      "selectedDirection",
+      "selected_direction"
+    ]),
+    value,
+    selected
+  );
+  const normalizedSelected =
+    selected ?? (direction === "selected" ? true : direction === "not_selected" ? false : null);
+  const axis = normalizeAxis(firstString(record, ["axis", "axisKey", "axis_key"])) ?? QUESTION_AXIS_MAP[questionId];
+
+  return {
+    id: hashString(`${event.quizRunIdHash}:${questionId}:${index}:${event.rowNumber}`, "answer"),
+    quizRunIdHash: event.quizRunIdHash,
+    questionId,
+    questionLabel,
+    questionStage,
+    leftLabel: leftLabel || undefined,
+    rightLabel: rightLabel || undefined,
+    direction,
+    selected: normalizedSelected,
+    axis,
+    value: value ?? undefined,
+    answerIndex: index,
+    sourceEventRow: event.rowNumber
+  };
 }
 
 function extractFeedback(event: ParsedEvent, index: number, exposeComments: boolean): FeedbackEntry {
@@ -386,6 +465,106 @@ function extractTypeInfo(...sources: unknown[]) {
     }
   }
   return { typeCode: "unknown", typeName: "Unknown" };
+}
+
+function extractResultInsights(sources: unknown, snapshotSource: unknown, typeInfo: { typeCode: string; typeName: string }): ResultInsights {
+  const sourceList = [sources, snapshotSource];
+  const topResult = firstNestedRecord(sourceList, ["topResult", "top_result", "top"]);
+  const secondaryResults = firstArray(sourceList, ["secondaryResults", "secondary_results", "alternatives"]);
+  const secondResult = toRecord(secondaryResults?.[0]);
+  const borderline = firstNestedRecord(sourceList, [
+    "borderlineHint",
+    "borderline_hint",
+    "borderline",
+    "nearestBorderline",
+    "nearest_borderline"
+  ]);
+  const reasons = firstArray(sourceList, ["reasonTop4", "reason_top_4", "reasons", "reasonCodes", "reason_codes"]);
+
+  const archetypeCode =
+    firstStringFromSources(sourceList, [
+      "archetypeCode",
+      "archetype_code",
+      "typeCode",
+      "type_code",
+      "code",
+      "resultTypeCode",
+      "result_type_code"
+    ]) || typeInfo.typeCode;
+  const archetypeName =
+    firstStringFromSources(sourceList, [
+      "archetypeName",
+      "archetype_name",
+      "typeName",
+      "type_name",
+      "name",
+      "resultTypeName",
+      "result_type_name"
+    ]) || typeInfo.typeName;
+
+  return {
+    archetypeCode,
+    archetypeName,
+    mainCategory: firstStringFromSources(sourceList, ["mainCategory", "main_category", "category"]),
+    subCategory: firstStringFromSources(sourceList, ["subCategory", "sub_category"]),
+    topShare: normalizePercent(
+      firstNumberFromSources(sourceList, ["topShare", "top_share", "share"]) ??
+        coerceNumber(firstDefined(topResult, ["share", "topShare", "top_share"]))
+    ),
+    secondShare: normalizePercent(
+      firstNumberFromSources(sourceList, ["secondShare", "second_share", "runnerUpShare", "runner_up_share"]) ??
+        coerceNumber(firstDefined(secondResult, ["share", "secondShare", "second_share"]))
+    ),
+    borderlineCode:
+      firstStringFromSources(sourceList, ["borderlineCode", "borderline_code", "nearestBorderlineCode"]) ||
+      firstString(borderline, ["code", "typeCode", "type_code"]),
+    borderlineName:
+      firstStringFromSources(sourceList, ["borderlineName", "borderline_name", "nearestBorderlineName"]) ||
+      firstString(borderline, ["name", "typeName", "type_name"]),
+    borderlineDistance:
+      firstNumberFromSources(sourceList, ["borderlineDistance", "borderline_distance", "distance"]) ??
+      coerceNumber(firstDefined(borderline, ["distance", "borderlineDistance", "borderline_distance"])),
+    borderlineStrength:
+      firstStringFromSources(sourceList, ["borderlineStrength", "borderline_strength"]) ||
+      firstString(borderline, ["strength"]),
+    confidenceScore: normalizePercent(firstNumberFromSources(sourceList, ["confidenceScore", "confidence_score"])),
+    reasonTop4: extractReasonTop4(reasons)
+  };
+}
+
+function calculateConfidenceScore({
+  topShare,
+  secondShare,
+  borderlineDistance,
+  answerCount,
+  invalidReasonCodes
+}: {
+  topShare: number | null;
+  secondShare: number | null;
+  borderlineDistance: number | null;
+  answerCount: number;
+  invalidReasonCodes: IssueCategory[];
+}) {
+  const hasSignals = topShare !== null || secondShare !== null || borderlineDistance !== null || answerCount > 0;
+  if (!hasSignals) return null;
+
+  const topGapTerm =
+    topShare !== null && secondShare !== null ? clamp01(Math.max(0, topShare - secondShare) / 100) : 0.5;
+  const scoreStrengthTerm = topShare !== null ? clamp01(topShare / 100) : 0.5;
+  const distanceTerm = borderlineDistance !== null ? 1 - clamp01(Math.min(Math.max(borderlineDistance, 0), 40) / 40) : 0.5;
+  const completenessTerm = clamp01(answerCount / QUESTIONNAIRE_EXPECTED_ANSWER_COUNT);
+  const issuePenalty = Math.min(0.45, invalidReasonCodes.length * 0.08);
+
+  return Number(
+    Math.max(
+      0,
+      Math.min(
+        100,
+        100 * (0.35 * topGapTerm + 0.25 * scoreStrengthTerm + 0.2 * distanceTerm + 0.2 * completenessTerm) -
+          issuePenalty * 100
+      )
+    ).toFixed(1)
+  );
 }
 
 function extractAxes(...sources: unknown[]): AxisValues {
@@ -466,6 +645,92 @@ function extractStringList(source: unknown, keys: string[]) {
   return [];
 }
 
+function firstNestedRecord(sources: unknown[], keys: string[]) {
+  for (const source of sources) {
+    const candidates = candidateRecords(source);
+    for (const candidate of candidates) {
+      for (const key of keys) {
+        const record = toRecord(candidate?.[key]);
+        if (record) return record;
+      }
+    }
+  }
+  return undefined;
+}
+
+function firstArray(sources: unknown[], keys: string[]) {
+  for (const source of sources) {
+    const candidates = candidateRecords(source);
+    for (const candidate of candidates) {
+      for (const key of keys) {
+        const value = candidate?.[key];
+        if (Array.isArray(value)) return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function firstStringFromSources(sources: unknown[], keys: string[]) {
+  for (const source of sources) {
+    for (const candidate of candidateRecords(source)) {
+      const value = firstString(candidate, keys);
+      if (value) return value;
+    }
+  }
+  return "";
+}
+
+function firstNumberFromSources(sources: unknown[], keys: string[]) {
+  for (const source of sources) {
+    for (const candidate of candidateRecords(source)) {
+      const value = coerceNumber(firstDefined(candidate, keys));
+      if (value !== null) return value;
+    }
+  }
+  return null;
+}
+
+function candidateRecords(source: unknown) {
+  const record = toRecord(source);
+  return [
+    record,
+    toRecord(record?.result),
+    toRecord(record?.type),
+    toRecord(record?.finalType),
+    toRecord(record?.recommendation),
+    toRecord(record?.archetype),
+    toRecord(record?.topResult),
+    toRecord(record?.top_result),
+    toRecord(record?.borderlineHint),
+    toRecord(record?.borderline_hint)
+  ].filter((item): item is Record<string, unknown> => Boolean(item));
+}
+
+function extractReasonTop4(reasons: unknown[] | undefined) {
+  if (!reasons) return [];
+  return reasons
+    .map((reason) => {
+      const record = toRecord(reason);
+      if (!record) return typeof reason === "string" ? reason.trim() : "";
+      const label = firstString(record, ["label", "name", "key", "reason", "reasonCode", "reason_code"]);
+      const score = coerceNumber(firstDefined(record, ["score", "value", "weight"]));
+      return score === null ? label : `${label}:${score}`;
+    })
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function normalizePercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return null;
+  const percent = value <= 1 && value >= 0 ? value * 100 : value;
+  return Number(Math.max(0, Math.min(100, percent)).toFixed(1));
+}
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
 function normalizeDirection(value: unknown, numericValue: number | null, selected: boolean | null) {
   const text = String(value ?? "").trim().toLowerCase().replaceAll("-", "_").replaceAll(" ", "_");
   if (["left", "l", "a", "negative"].includes(text)) return "left";
@@ -506,6 +771,10 @@ function compareEventOrder(a: ParsedEvent, b: ParsedEvent) {
 
 function firstNonUnknown(values: Array<string | undefined>) {
   return values.find((value) => value && value !== "unknown") ?? values.find(Boolean) ?? "unknown";
+}
+
+function firstKnown(values: Array<string | undefined>) {
+  return values.find((value) => value && value !== "unknown");
 }
 
 function minTimestamp(events: ParsedEvent[]) {

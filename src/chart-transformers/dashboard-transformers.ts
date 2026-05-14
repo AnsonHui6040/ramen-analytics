@@ -1,5 +1,5 @@
 import { applyRunFilters } from "@/analytics/filters";
-import { QUESTION_STAGE_ORDER, QUESTIONNAIRE_INFLUENCE_ROWS } from "@/analytics/questionnaire-baseline";
+import { QUESTION_STAGE_ORDER, QUESTIONNAIRE_EXPECTED_ANSWER_COUNT, QUESTIONNAIRE_INFLUENCE_ROWS } from "@/analytics/questionnaire-baseline";
 import { AXIS_KEYS, type AnswerDirection, type AxisKey, type QuizRunSummary } from "@/types/events";
 import type {
   AnswerTableRow,
@@ -7,9 +7,12 @@ import type {
   DashboardFilters,
   DashboardMetrics,
   DashboardView,
+  DataQualityRow,
   FeedbackRatingRow,
   FeedbackTableRow,
   FunnelRow,
+  IssueParetoRow,
+  PersonaSegmentRow,
   QuestionDirectionRow,
   RunTableRow,
   TagRow,
@@ -58,6 +61,9 @@ export function buildDashboardView(
     runRows: buildRunRows(filteredRuns),
     answerRows: buildAnswerRows(analysisRuns),
     feedbackRows: buildFeedbackRows(filteredRuns, dataset?.exposeComments ?? false),
+    dataQualityRows: buildDataQualityRows(filteredRuns, filteredIssues),
+    issuePareto: buildIssuePareto(filteredIssues),
+    personaSegments: buildPersonaSegments(analysisRuns),
     issueRows: filteredIssues,
     availableTypeCodes,
     availableAppVersions,
@@ -245,8 +251,19 @@ function buildRunRows(runs: QuizRunSummary[]): RunTableRow[] {
     status: run.isLoadTest ? "load-test" : run.isValidCompleted ? "valid" : "invalid",
     typeCode: run.typeCode,
     typeName: run.typeName,
+    pagePath: run.pagePath ?? "",
     appVersion: run.appVersion,
+    schemaVersion: run.schemaVersion,
+    questionnaireVersion: run.questionnaireVersion,
+    resultVersion: run.resultVersion,
     source: run.source,
+    mainCategory: run.resultInsights.mainCategory,
+    subCategory: run.resultInsights.subCategory,
+    topShare: run.resultInsights.topShare,
+    secondShare: run.resultInsights.secondShare,
+    borderlineCode: run.resultInsights.borderlineCode,
+    borderlineDistance: run.resultInsights.borderlineDistance,
+    confidenceScore: run.resultInsights.confidenceScore,
     hasFeedback: run.hasFeedback,
     rating: firstRating(run),
     eventCount: run.eventCount,
@@ -295,6 +312,101 @@ function buildFeedbackRows(runs: QuizRunSummary[], exposeComments: boolean): Fee
   );
 }
 
+function buildDataQualityRows(runs: QuizRunSummary[], issues: DashboardView["filteredIssues"]): DataQualityRow[] {
+  const issuesByRun = groupBy(
+    issues.filter((issue) => issue.runIdHash),
+    (issue) => issue.runIdHash ?? ""
+  );
+
+  return runs.map((run) => {
+    const runIssues = issuesByRun.get(run.quizRunIdHash) ?? [];
+    const missingEvents = [
+      !run.hasStarted ? "quiz_started" : "",
+      !run.hasAnswerSnapshot ? "answer_snapshot" : "",
+      !run.hasQuizResult ? "quiz_result" : ""
+    ].filter(Boolean);
+
+    return {
+      quizRunIdHash: run.quizRunIdHash,
+      status: run.isLoadTest ? "load-test" : run.isValidCompleted ? "valid" : "invalid",
+      pagePath: run.pagePath ?? "",
+      hasStarted: run.hasStarted,
+      hasAnswerSnapshot: run.hasAnswerSnapshot,
+      hasQuizResult: run.hasQuizResult,
+      hasFeedback: run.hasFeedback,
+      answerCompleteness: Math.min(1, run.actualAnswerCount / QUESTIONNAIRE_EXPECTED_ANSWER_COUNT),
+      issueCount: runIssues.length,
+      criticalIssueCount: runIssues.filter((issue) => issue.severity === "error").length,
+      missingEvents: missingEvents.join(", ")
+    };
+  });
+}
+
+function buildIssuePareto(issues: DashboardView["filteredIssues"]): IssueParetoRow[] {
+  const counts = countBy(issues, (issue) => issue.category);
+  const total = issues.length;
+  let cumulative = 0;
+
+  return Array.from(counts.entries())
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count)
+    .map(({ category, count }) => {
+      cumulative += count;
+      return {
+        category,
+        count,
+        percentage: total ? count / total : 0,
+        cumulativePercentage: total ? cumulative / total : 0
+      };
+    });
+}
+
+function buildPersonaSegments(validRuns: QuizRunSummary[]): PersonaSegmentRow[] {
+  const groups = groupBy(validRuns, (run) => buildSegmentId(run));
+  const total = validRuns.length;
+
+  return Array.from(groups.entries())
+    .map(([segmentId, runs]) => {
+      const ratings = runs
+        .flatMap((run) => run.feedbacks.map((feedback) => feedback.rating))
+        .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
+      const topTypeCode = mostCommon(runs.map((run) => run.typeCode || "unknown"));
+      return {
+        segmentId,
+        label: segmentId
+          .split("|")
+          .map((part) => part.replaceAll("_", " "))
+          .join(" / "),
+        count: runs.length,
+        percentage: total ? runs.length / total : 0,
+        topTypeCode,
+        feedbackRate: runs.length ? runs.filter((run) => run.hasFeedback).length / runs.length : 0,
+        averageRating: ratings.length ? average(ratings) : null,
+        richnessAxis: averageAxis(runs, "richnessAxis"),
+        brothBodyAxis: averageAxis(runs, "brothBodyAxis"),
+        impactAxis: averageAxis(runs, "impactAxis"),
+        noodleBodyAxis: averageAxis(runs, "noodleBodyAxis")
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
+function buildSegmentId(run: QuizRunSummary) {
+  return [
+    bucketAxis(run.axes.richnessAxis, "light", "balanced_richness", "rich"),
+    bucketAxis(run.axes.brothBodyAxis, "clear_broth", "balanced_broth", "cloudy_broth"),
+    bucketAxis(run.axes.impactAxis, "gentle", "balanced_impact", "bold"),
+    bucketAxis(run.axes.noodleBodyAxis, "silky_noodle", "balanced_noodle", "chewy_noodle")
+  ].join("|");
+}
+
+function bucketAxis(value: number | null, low: string, middle: string, high: string) {
+  if (value === null || !Number.isFinite(value)) return middle;
+  if (value <= 40) return low;
+  if (value >= 60) return high;
+  return middle;
+}
+
 function selectCompareTypeCodes(validRuns: QuizRunSummary[], requested: string[]) {
   const available = new Set(validRuns.map((run) => run.typeCode));
   const requestedValid = requested.filter((typeCode) => available.has(typeCode));
@@ -317,6 +429,10 @@ function firstRating(run: QuizRunSummary) {
 
 function average(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function mostCommon(values: string[]) {
+  return Array.from(countBy(values, (value) => value).entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "unknown";
 }
 
 function percentage(count: number, total: number) {

@@ -67,6 +67,10 @@ export interface ClientEvent {
   fingerprintHash: string;
   quizRunIdHash: string;
   sessionIdHash?: string;
+  pagePath?: string;
+  schemaVersion: string;
+  questionnaireVersion: string;
+  resultVersion: string;
   fileName: string;
   rowNumber: number;
   eventType: string;
@@ -118,9 +122,28 @@ export interface AxisValues {
   noodleBodyAxis: number | null;
 }
 
+export interface ResultInsights {
+  archetypeCode: string;
+  archetypeName: string;
+  mainCategory: string;
+  subCategory: string;
+  topShare: number | null;
+  secondShare: number | null;
+  borderlineCode: string;
+  borderlineName: string;
+  borderlineDistance: number | null;
+  borderlineStrength: string;
+  confidenceScore: number | null;
+  reasonTop4: string[];
+}
+
 export interface QuizRunSummary {
   quizRunIdHash: string;
   sessionIdHash?: string;
+  pagePath?: string;
+  schemaVersion: string;
+  questionnaireVersion: string;
+  resultVersion: string;
   firstSeenAt?: string;
   lastSeenAt?: string;
   eventCount: number;
@@ -142,6 +165,7 @@ export interface QuizRunSummary {
   typeCode: string;
   typeName: string;
   axes: AxisValues;
+  resultInsights: ResultInsights;
   flavorTags: string[];
   allergenWarnings: string[];
   answers: NormalizedAnswer[];

@@ -89,6 +89,9 @@ export function DashboardShell() {
           flavorTags: view.flavorTags,
           allergenWarnings: view.allergenWarnings,
           versionAnalysis: view.versionAnalysis,
+          issuePareto: view.issuePareto,
+          personaSegments: view.personaSegments,
+          dataQualityRows: view.dataQualityRows,
           validationIssueCount: view.issueRows.length
         },
         null,
