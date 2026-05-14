@@ -89,7 +89,7 @@ export const dictionaries = {
       },
       axisAnalysis: {
         title: "軸向分析",
-        description: "以測驗結果的 0-100 四軸分數比較整體平均與指定類型",
+        description: "濃郁度、湯體厚度、衝擊感、麵體口感各自列出完整 16 型由高至低排行",
         overall: "整體"
       },
       completionFunnel: {
@@ -254,7 +254,7 @@ export const dictionaries = {
       title: "示範預覽",
       description:
         "點示範模式會載入合成範例 CSV，包含有效完成測驗、壓力測試排除、重複答案快照、不完整測驗與 JSON 格式錯誤範例。",
-      tiles: ["16 型百分比分布", "軸向百分比條", "完成漏斗", "驗證問題"],
+      tiles: ["16 型百分比分布", "四軸 16 型排行", "完成漏斗", "驗證問題"],
       cards: [
         ["10 萬筆以上", "背景解析與記憶化儀表板轉換"],
         ["隱私", "無後端、ID 雜湊、留言預設隱藏"],
@@ -338,7 +338,7 @@ export const dictionaries = {
       },
       axisAnalysis: {
         title: "Axis Analysis",
-        description: "overall averages and selected type comparison",
+        description: "full 16-type ranking for richness, broth body, impact, and noodle texture",
         overall: "overall"
       },
       completionFunnel: {
@@ -504,7 +504,7 @@ export const dictionaries = {
       title: "Demo preview",
       description:
         "Demo mode loads a synthetic sample CSV with valid runs, load-test exclusion, duplicate answer_snapshot, incomplete run, and malformed JSON examples.",
-      tiles: ["16-type distribution", "Axis percentages", "Completion funnel", "Validation issues"],
+      tiles: ["16-type distribution", "4-axis rankings", "Completion funnel", "Validation issues"],
       cards: [
         ["100k+ rows", "Worker parsing and memoized dashboard transforms"],
         ["Privacy", "No backend, hashed IDs, hidden comments by default"],
@@ -589,7 +589,7 @@ export const dictionaries = {
       },
       axisAnalysis: {
         title: "軸分析",
-        description: "全体平均と選択タイプの比較",
+        description: "濃厚度、スープの厚み、インパクト、麺の食感を16タイプで高い順に表示",
         overall: "全体"
       },
       completionFunnel: {
@@ -755,7 +755,7 @@ export const dictionaries = {
       title: "デモプレビュー",
       description:
         "デモモードでは、有効完了クイズ、負荷テスト除外、重複回答記録、不完全なクイズ、JSON 形式エラーを含む合成サンプル CSV を読み込みます。",
-      tiles: ["16タイプ分布", "軸の割合", "完了ファネル", "検証問題"],
+      tiles: ["16タイプ分布", "4軸ランキング", "完了ファネル", "検証問題"],
       cards: [
         ["10 万行以上", "バックグラウンド解析とメモ化されたダッシュボード変換"],
         ["プライバシー", "バックエンドなし、ID はハッシュ化、コメントは既定で非表示"],

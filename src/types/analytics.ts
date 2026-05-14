@@ -37,6 +37,15 @@ export interface AxisRadarRow {
   [typeCode: string]: string | number;
 }
 
+export interface AxisTypeRankingRow {
+  axis: AxisKey;
+  typeCode: string;
+  typeName: string;
+  average: number;
+  sampleSize: number;
+  rank: number;
+}
+
 export type PreferenceHighlightCategory = "flavor" | "protein" | "topping" | "allergen";
 
 export interface PreferenceHighlightRow {
@@ -187,6 +196,7 @@ export interface DashboardView {
   metrics: DashboardMetrics;
   typeDistribution: TypeDistributionRow[];
   axisRadar: AxisRadarRow[];
+  axisTypeRankings: AxisTypeRankingRow[];
   preferenceHighlights: PreferenceHighlightRow[];
   compareTypeCodes: string[];
   funnel: FunnelRow[];

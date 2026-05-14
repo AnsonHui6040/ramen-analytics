@@ -82,6 +82,7 @@ export function DashboardShell() {
           metrics: view.metrics,
           typeDistribution: view.typeDistribution,
           axisRadar: view.axisRadar,
+          axisTypeRankings: view.axisTypeRankings,
           preferenceHighlights: view.preferenceHighlights,
           funnel: view.funnel,
           questionDirection: view.questionDirection,

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Camera, Check } from "lucide-react";
+import { Camera } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -22,7 +22,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { localizeChoiceLabel, localizeQuestionLabel } from "@/analytics/questionnaire-baseline";
 import type { Dictionary, Locale } from "@/i18n/dictionary";
 import { formatDecimal, formatNumber, formatPercent } from "@/lib/utils";
-import type { DashboardView, PreferenceHighlightRow, TagRow, TypeDistributionRow } from "@/types/analytics";
+import type { AxisTypeRankingRow, DashboardView, PreferenceHighlightRow, TagRow, TypeDistributionRow } from "@/types/analytics";
+import type { AxisKey } from "@/types/events";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -48,16 +49,8 @@ const tooltipStyle = {
   color: "hsl(var(--popover-foreground))"
 };
 
-export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChange, t, locale }: AnalyticsChartsProps) {
-  const selectableTypes = view.typeDistribution.slice(0, 8).map((row) => row.typeCode);
-  const axisData = React.useMemo(
-    () =>
-      view.axisRadar.map((row) => ({
-        ...row,
-        axisLabel: t.axes[row.axis]
-      })),
-    [t, view.axisRadar]
-  );
+export function AnalyticsCharts({ view, t, locale }: AnalyticsChartsProps) {
+  const axisRankingData = React.useMemo(() => groupAxisRankings(view.axisTypeRankings), [view.axisTypeRankings]);
   const funnelData = React.useMemo(
     () =>
       view.funnel.map((row) => ({
@@ -106,15 +99,6 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
     [locale, t, view.preferenceHighlights]
   );
 
-  const toggleType = (typeCode: string) => {
-    const active = compareTypeCodes.includes(typeCode);
-    if (active) {
-      onCompareTypeCodesChange(compareTypeCodes.filter((item) => item !== typeCode));
-      return;
-    }
-    onCompareTypeCodesChange([...compareTypeCodes, typeCode].slice(-4));
-  };
-
   return (
     <section className="grid gap-4 xl:grid-cols-2">
       <ChartPanel
@@ -138,32 +122,10 @@ export function AnalyticsCharts({ view, compareTypeCodes, onCompareTypeCodesChan
         description={t.charts.axisAnalysis.description}
         exportLabel={t.charts.exportPng(t.charts.axisAnalysis.title)}
         errorLabel={t.charts.pngExportFailed}
+        className="xl:col-span-2"
       >
-        <div className="mb-3 flex flex-wrap gap-2">
-          {selectableTypes.map((typeCode) => {
-            const active = compareTypeCodes.includes(typeCode);
-            return (
-              <Button
-                key={typeCode}
-                type="button"
-                size="sm"
-                variant={active ? "default" : "outline"}
-                onClick={() => toggleType(typeCode)}
-                className="h-8"
-              >
-                {active && <Check className="size-3.5" />}
-                {typeCode}
-              </Button>
-            );
-          })}
-        </div>
-        {axisData.length ? (
-          <AxisPercentagePanel
-            rows={axisData}
-            compareTypeCodes={view.compareTypeCodes}
-            overallLabel={t.charts.axisAnalysis.overall}
-            locale={locale}
-          />
+        {axisRankingData.length ? (
+          <AxisTypeRankingPanel groups={axisRankingData} t={t} locale={locale} />
         ) : (
           <NoData label={t.charts.noData} />
         )}
@@ -429,42 +391,62 @@ function TypeDistributionGrid({ rows, locale }: { rows: TypeDistributionRow[]; l
   );
 }
 
-function AxisPercentagePanel({
-  rows,
-  compareTypeCodes,
-  overallLabel,
+function AxisTypeRankingPanel({
+  groups,
+  t,
   locale
 }: {
-  rows: Array<Record<string, string | number>>;
-  compareTypeCodes: string[];
-  overallLabel: string;
+  groups: Array<{ axis: AxisKey; rows: AxisTypeRankingRow[] }>;
+  t: Dictionary;
   locale: Locale;
 }) {
   return (
-    <div className="grid gap-3">
-      {rows.map((row) => (
-        <div key={String(row.axis)} className="rounded-md border bg-background/70 p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-semibold">{row.axisLabel}</div>
-            <div className="text-lg font-semibold">{formatPercent(Number(row.overall) / 100, 1, locale)}</div>
-          </div>
-          <PercentBar value={Number(row.overall)} color={COLORS[0]} />
-          {compareTypeCodes.length > 0 && (
-            <div className="mt-3 grid gap-2">
-              {compareTypeCodes.map((typeCode, index) => (
-                <div key={typeCode} className="grid grid-cols-[4.5rem_1fr_3.5rem] items-center gap-2 text-xs">
-                  <span className="font-medium text-muted-foreground">{typeCode}</span>
-                  <PercentBar value={Number(row[typeCode] ?? 0)} color={COLORS[(index + 1) % COLORS.length]} compact />
-                  <span className="text-right text-muted-foreground">
-                    {formatPercent(Number(row[typeCode] ?? 0) / 100, 0, locale)}
-                  </span>
-                </div>
-              ))}
+    <div className="grid gap-4 lg:grid-cols-2">
+      {groups.map((group) => {
+        const maxAverage = Math.max(...group.rows.map((row) => (row.sampleSize ? row.average : 0)), 1);
+        return (
+          <div key={group.axis} className="rounded-md border bg-background/70 p-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold">{t.axes[group.axis]}</div>
+              <div className="text-xs text-muted-foreground">{typeCountLabel(locale)}</div>
             </div>
-          )}
-          <div className="mt-2 text-xs text-muted-foreground">{overallLabel}</div>
-        </div>
-      ))}
+            <div className="grid gap-2">
+              {group.rows.map((row, index) => {
+                const color = COLORS[index % COLORS.length];
+                const muted = row.sampleSize === 0;
+                return (
+                  <div key={`${group.axis}-${row.typeCode}`} className={muted ? "text-muted-foreground" : ""}>
+                    <div className="grid grid-cols-[2rem_4.25rem_minmax(0,1fr)_4rem] items-center gap-2 text-xs">
+                      <span className="font-semibold tabular-nums">#{row.rank}</span>
+                      <span className="font-semibold">{row.typeCode}</span>
+                      <span className="min-w-0 truncate">{row.typeName}</span>
+                      <span className="text-right font-semibold">
+                        {formatPercent(row.average / 100, 1, locale)}
+                      </span>
+                    </div>
+                    <div className="mt-1 grid grid-cols-[6.75rem_minmax(0,1fr)_2.5rem] items-center gap-2">
+                      <div />
+                      <div className="h-1.5 rounded-full bg-muted">
+                        <div
+                          className="h-1.5 rounded-full"
+                          style={{
+                            width: `${Math.max(muted ? 0 : 2, (row.average / maxAverage) * 100)}%`,
+                            backgroundColor: color,
+                            opacity: muted ? 0.2 : 1
+                          }}
+                        />
+                      </div>
+                      <div className="text-right text-[11px] text-muted-foreground">
+                        n={formatNumberForLocale(row.sampleSize, locale)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -526,6 +508,19 @@ function PercentBar({ value, color, compact = false }: { value: number; color: s
   );
 }
 
+function groupAxisRankings(rows: AxisTypeRankingRow[]) {
+  const groups = new Map<AxisKey, AxisTypeRankingRow[]>();
+  for (const row of rows) {
+    const group = groups.get(row.axis) ?? [];
+    group.push(row);
+    groups.set(row.axis, group);
+  }
+  return Array.from(groups.entries()).map(([axis, groupRows]) => ({
+    axis,
+    rows: groupRows.sort((a, b) => a.rank - b.rank)
+  }));
+}
+
 function NoData({ label = "No chart data for current filters" }: { label?: string }) {
   return (
     <div className="flex h-[240px] items-center justify-center rounded-md border border-dashed bg-muted/25 text-sm text-muted-foreground">
@@ -536,6 +531,12 @@ function NoData({ label = "No chart data for current filters" }: { label?: strin
 
 function formatNumberForLocale(value: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "zh" ? "zh-TW" : locale === "ja" ? "ja-JP" : "en-US").format(value);
+}
+
+function typeCountLabel(locale: Locale) {
+  if (locale === "zh") return "16 型";
+  if (locale === "ja") return "16タイプ";
+  return "16 types";
 }
 
 function localizeTagLabel(name: string, locale: Locale) {

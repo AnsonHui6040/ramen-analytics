@@ -4,6 +4,7 @@ import { AXIS_KEYS, type AnswerDirection, type AxisKey, type QuizRunSummary } fr
 import type {
   AnswerTableRow,
   AxisRadarRow,
+  AxisTypeRankingRow,
   DashboardFilters,
   DashboardMetrics,
   DashboardView,
@@ -104,6 +105,7 @@ export function buildDashboardView(
     metrics: buildMetrics(filteredRuns),
     typeDistribution: buildTypeDistribution(analysisRuns),
     axisRadar: buildAxisRadar(analysisRuns, compareTypeCodes),
+    axisTypeRankings: buildAxisTypeRankings(analysisRuns),
     preferenceHighlights: buildPreferenceHighlights(analysisRuns),
     compareTypeCodes,
     funnel: buildFunnel(filteredRuns, filters.validity === "load-test"),
@@ -197,6 +199,39 @@ function buildAxisRadar(validRuns: QuizRunSummary[], compareTypeCodes: string[])
       );
     }
     return row;
+  });
+}
+
+function buildAxisTypeRankings(validRuns: QuizRunSummary[]): AxisTypeRankingRow[] {
+  const catalogOrder = new Map(TYPE_CATALOG.map((item, index) => [item.typeCode, index]));
+
+  return AXIS_KEYS.flatMap((axis) => {
+    const rows = TYPE_CATALOG.map(({ typeCode, typeName }) => {
+      const typeRuns = validRuns.filter((run) => run.typeCode === typeCode);
+      const values = typeRuns
+        .map((run) => run.axes[axis])
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      const matchedTypeName = typeRuns.find((run) => run.typeName)?.typeName;
+
+      return {
+        axis,
+        typeCode,
+        typeName: matchedTypeName || typeName,
+        average: values.length ? average(values) : 0,
+        sampleSize: values.length,
+        rank: 0
+      };
+    }).sort((a, b) => {
+      if (a.sampleSize === 0 && b.sampleSize > 0) return 1;
+      if (a.sampleSize > 0 && b.sampleSize === 0) return -1;
+      if (b.average !== a.average) return b.average - a.average;
+      return (catalogOrder.get(a.typeCode) ?? 999) - (catalogOrder.get(b.typeCode) ?? 999);
+    });
+
+    return rows.map((row, index) => ({
+      ...row,
+      rank: index + 1
+    }));
   });
 }
 
